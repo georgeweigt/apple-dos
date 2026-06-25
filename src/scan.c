@@ -856,13 +856,13 @@ scan_ds(void)
 	scan_token(); // skip 'ds'
 	scan_value();
 
-	n = value;
-
 	if (token != ',') {
 		curloc += value;
 		pass = t;
 		return;
 	}
+
+	n = value;
 
 	scan_token(); // skip ','
 	scan_value();
@@ -870,7 +870,7 @@ scan_ds(void)
 	pass = t;
 
 	for (i = 0; i < n; i++)
-		scan_emit_byte(value);
+		emit_byte(value);
 }
 
 void
@@ -882,11 +882,11 @@ scan_asc(void)
 		if (token == T_QUOSTR) {
 			s = tokenbuf;
 			while (*s)
-				scan_emit_byte(*s++ | 0x80);
+				emit_byte(*s++ | 0x80);
 			scan_token();
 		} else {
 			scan_value();
-			scan_emit_byte(value | 0x80);
+			emit_byte(value | 0x80);
 		}
 	} while (token == ',');
 }
@@ -900,13 +900,13 @@ scan_dci(void)
 		if (token == T_QUOSTR) {
 			s = tokenbuf;
 			while (s[0] && s[1])
-				scan_emit_byte(*s++);
+				emit_byte(*s++);
 			if (*s)
-				scan_emit_byte(*s | 0x80); // last char
+				emit_byte(*s | 0x80); // last char
 			scan_token();
 		} else {
 			scan_value();
-			scan_emit_byte(value);
+			emit_byte(value);
 		}
 	} while (token == ',');
 }
@@ -920,11 +920,11 @@ scan_byte(void)
 		if (token == T_QUOSTR && tokenlen > 1) {
 			s = tokenbuf;
 			while (*s)
-				scan_emit_byte(*s++);
+				emit_byte(*s++);
 			scan_token();
 		} else {
 			scan_value();
-			scan_emit_byte(value);
+			emit_byte(value);
 		}
 	} while (token == ',');
 }
@@ -935,7 +935,7 @@ scan_word(void)
 	do {
 		scan_token();
 		scan_value();
-		scan_emit_word(value);
+		emit_word(value);
 	} while (token == ',');
 }
 
@@ -948,33 +948,33 @@ scan_adc(void)
 	switch (addrmode) {
 
 	case AM_IMM:
-		scan_emit(ADC_IMM, 2);
+		emit(ADC_IMM, 2);
 		break;
 
 	case AM_ZPXI:
-		scan_emit(ADC_ZPXI, 2);
+		emit(ADC_ZPXI, 2);
 		break;
 
 	case AM_ZPIY:
-		scan_emit(ADC_ZPIY, 2);
+		emit(ADC_ZPIY, 2);
 		break;
 
 	case AM_ABS:
 		if (ZPADDR)
-			scan_emit(ADC_ZP, 2);
+			emit(ADC_ZP, 2);
 		else
-			scan_emit(ADC_ABS, 3);
+			emit(ADC_ABS, 3);
 		break;
 
 	case AM_ABSX:
 		if (ZPADDR)
-			scan_emit(ADC_ZPX, 2);
+			emit(ADC_ZPX, 2);
 		else
-			scan_emit(ADC_ABSX, 3);
+			emit(ADC_ABSX, 3);
 		break;
 
 	case AM_ABSY:
-		scan_emit(ADC_ABSY, 3);
+		emit(ADC_ABSY, 3);
 		break;
 
 	default:
@@ -992,33 +992,33 @@ scan_and(void)
 	switch (addrmode) {
 
 	case AM_IMM:
-		scan_emit(AND_IMM, 2);
+		emit(AND_IMM, 2);
 		break;
 
 	case AM_ZPXI:
-		scan_emit(AND_ZPXI, 2);
+		emit(AND_ZPXI, 2);
 		break;
 
 	case AM_ZPIY:
-		scan_emit(AND_ZPIY, 2);
+		emit(AND_ZPIY, 2);
 		break;
 
 	case AM_ABS:
 		if (ZPADDR)
-			scan_emit(AND_ZP, 2);
+			emit(AND_ZP, 2);
 		else
-			scan_emit(AND_ABS, 3);
+			emit(AND_ABS, 3);
 		break;
 
 	case AM_ABSX:
 		if (ZPADDR)
-			scan_emit(AND_ZPX, 2);
+			emit(AND_ZPX, 2);
 		else
-			scan_emit(AND_ABSX, 3);
+			emit(AND_ABSX, 3);
 		break;
 
 	case AM_ABSY:
-		scan_emit(AND_ABSY, 3);
+		emit(AND_ABSY, 3);
 		break;
 
 	default:
@@ -1034,7 +1034,7 @@ scan_asl(void)
 
 	if (token == T_NAME && (strcmp(tokenbuf, "a") == 0 || strcmp(tokenbuf, "A") == 0)) {
 		scan_token();
-		scan_emit(ASL_REGA, 1);
+		emit(ASL_REGA, 1);
 		return;
 	}
 
@@ -1044,16 +1044,16 @@ scan_asl(void)
 
 	case AM_ABS:
 		if (ZPADDR)
-			scan_emit(ASL_ZP, 2);
+			emit(ASL_ZP, 2);
 		else
-			scan_emit(ASL_ABS, 3);
+			emit(ASL_ABS, 3);
 		break;
 
 	case AM_ABSX:
 		if (ZPADDR)
-			scan_emit(ASL_ZPX, 2);
+			emit(ASL_ZPX, 2);
 		else
-			scan_emit(ASL_ABSX, 3);
+			emit(ASL_ABSX, 3);
 		break;
 
 	default:
@@ -1067,7 +1067,7 @@ scan_bcc(void)
 {
 	scan_token();
 	scan_branch();
-	scan_emit(OP_BCC, 2);
+	emit(OP_BCC, 2);
 }
 
 void
@@ -1075,7 +1075,7 @@ scan_bcs(void)
 {
 	scan_token();
 	scan_branch();
-	scan_emit(OP_BCS, 2);
+	emit(OP_BCS, 2);
 }
 
 void
@@ -1083,7 +1083,7 @@ scan_beq(void)
 {
 	scan_token();
 	scan_branch();
-	scan_emit(OP_BEQ, 2);
+	emit(OP_BEQ, 2);
 }
 
 void
@@ -1096,9 +1096,9 @@ scan_bit(void)
 
 	case AM_ABS:
 		if (ZPADDR)
-			scan_emit(BIT_ZP, 2);
+			emit(BIT_ZP, 2);
 		else
-			scan_emit(BIT_ABS, 3);
+			emit(BIT_ABS, 3);
 		break;
 
 	default:
@@ -1112,7 +1112,7 @@ scan_bmi(void)
 {
 	scan_token();
 	scan_branch();
-	scan_emit(OP_BMI, 2);
+	emit(OP_BMI, 2);
 }
 
 void
@@ -1120,7 +1120,7 @@ scan_bne(void)
 {
 	scan_token();
 	scan_branch();
-	scan_emit(OP_BNE, 2);
+	emit(OP_BNE, 2);
 }
 
 void
@@ -1128,14 +1128,14 @@ scan_bpl(void)
 {
 	scan_token();
 	scan_branch();
-	scan_emit(OP_BPL, 2);
+	emit(OP_BPL, 2);
 }
 
 void
 scan_brk(void)
 {
 	scan_token();
-	scan_emit(OP_BRK, 1);
+	emit(OP_BRK, 1);
 }
 
 void
@@ -1143,7 +1143,7 @@ scan_bvc(void)
 {
 	scan_token();
 	scan_branch();
-	scan_emit(OP_BVC, 2);
+	emit(OP_BVC, 2);
 }
 
 void
@@ -1151,35 +1151,35 @@ scan_bvs(void)
 {
 	scan_token();
 	scan_branch();
-	scan_emit(OP_BVS, 2);
+	emit(OP_BVS, 2);
 }
 
 void
 scan_clc(void)
 {
 	scan_token();
-	scan_emit(OP_CLC, 1);
+	emit(OP_CLC, 1);
 }
 
 void
 scan_cld(void)
 {
 	scan_token();
-	scan_emit(OP_CLD, 1);
+	emit(OP_CLD, 1);
 }
 
 void
 scan_cli(void)
 {
 	scan_token();
-	scan_emit(OP_CLI, 1);
+	emit(OP_CLI, 1);
 }
 
 void
 scan_clv(void)
 {
 	scan_token();
-	scan_emit(OP_CLV, 1);
+	emit(OP_CLV, 1);
 }
 
 void
@@ -1191,33 +1191,33 @@ scan_cmp(void)
 	switch (addrmode) {
 
 	case AM_IMM:
-		scan_emit(CMP_IMM, 2);
+		emit(CMP_IMM, 2);
 		break;
 
 	case AM_ZPXI:
-		scan_emit(CMP_ZPXI, 2);
+		emit(CMP_ZPXI, 2);
 		break;
 
 	case AM_ZPIY:
-		scan_emit(CMP_ZPIY, 2);
+		emit(CMP_ZPIY, 2);
 		break;
 
 	case AM_ABS:
 		if (ZPADDR)
-			scan_emit(CMP_ZP, 2);
+			emit(CMP_ZP, 2);
 		else
-			scan_emit(CMP_ABS, 3);
+			emit(CMP_ABS, 3);
 		break;
 
 	case AM_ABSX:
 		if (ZPADDR)
-			scan_emit(CMP_ZPX, 2);
+			emit(CMP_ZPX, 2);
 		else
-			scan_emit(CMP_ABSX, 3);
+			emit(CMP_ABSX, 3);
 		break;
 
 	case AM_ABSY:
-		scan_emit(CMP_ABSY, 3);
+		emit(CMP_ABSY, 3);
 		break;
 
 	default:
@@ -1235,14 +1235,14 @@ scan_cpx(void)
 	switch (addrmode) {
 
 	case AM_IMM:
-		scan_emit(CPX_IMM, 2);
+		emit(CPX_IMM, 2);
 		break;
 
 	case AM_ABS:
 		if (ZPADDR)
-			scan_emit(CPX_ZP, 2);
+			emit(CPX_ZP, 2);
 		else
-			scan_emit(CPX_ABS, 3);
+			emit(CPX_ABS, 3);
 		break;
 
 	default:
@@ -1260,14 +1260,14 @@ scan_cpy(void)
 	switch (addrmode) {
 
 	case AM_IMM:
-		scan_emit(CPY_IMM, 2);
+		emit(CPY_IMM, 2);
 		break;
 
 	case AM_ABS:
 		if (ZPADDR)
-			scan_emit(CPY_ZP, 2);
+			emit(CPY_ZP, 2);
 		else
-			scan_emit(CPY_ABS, 3);
+			emit(CPY_ABS, 3);
 		break;
 
 	default:
@@ -1286,16 +1286,16 @@ scan_dec(void)
 
 	case AM_ABS:
 		if (ZPADDR)
-			scan_emit(DEC_ZP, 2);
+			emit(DEC_ZP, 2);
 		else
-			scan_emit(DEC_ABS, 3);
+			emit(DEC_ABS, 3);
 		break;
 
 	case AM_ABSX:
 		if (ZPADDR)
-			scan_emit(DEC_ZPX, 2);
+			emit(DEC_ZPX, 2);
 		else
-			scan_emit(DEC_ABSX, 3);
+			emit(DEC_ABSX, 3);
 		break;
 
 	default:
@@ -1308,14 +1308,14 @@ void
 scan_dex(void)
 {
 	scan_token();
-	scan_emit(OP_DEX, 1);
+	emit(OP_DEX, 1);
 }
 
 void
 scan_dey(void)
 {
 	scan_token();
-	scan_emit(OP_DEY, 1);
+	emit(OP_DEY, 1);
 }
 
 void
@@ -1327,33 +1327,33 @@ scan_eor(void)
 	switch (addrmode) {
 
 	case AM_IMM:
-		scan_emit(EOR_IMM, 2);
+		emit(EOR_IMM, 2);
 		break;
 
 	case AM_ZPXI:
-		scan_emit(EOR_ZPXI, 2);
+		emit(EOR_ZPXI, 2);
 		break;
 
 	case AM_ZPIY:
-		scan_emit(EOR_ZPIY, 2);
+		emit(EOR_ZPIY, 2);
 		break;
 
 	case AM_ABS:
 		if (ZPADDR)
-			scan_emit(EOR_ZP, 2);
+			emit(EOR_ZP, 2);
 		else
-			scan_emit(EOR_ABS, 3);
+			emit(EOR_ABS, 3);
 		break;
 
 	case AM_ABSX:
 		if (ZPADDR)
-			scan_emit(EOR_ZPX, 2);
+			emit(EOR_ZPX, 2);
 		else
-			scan_emit(EOR_ABSX, 3);
+			emit(EOR_ABSX, 3);
 		break;
 
 	case AM_ABSY:
-		scan_emit(EOR_ABSY, 3);
+		emit(EOR_ABSY, 3);
 		break;
 
 	default:
@@ -1372,16 +1372,16 @@ scan_inc(void)
 
 	case AM_ABS:
 		if (ZPADDR)
-			scan_emit(INC_ZP, 2);
+			emit(INC_ZP, 2);
 		else
-			scan_emit(INC_ABS, 3);
+			emit(INC_ABS, 3);
 		break;
 
 	case AM_ABSX:
 		if (ZPADDR)
-			scan_emit(INC_ZPX, 2);
+			emit(INC_ZPX, 2);
 		else
-			scan_emit(INC_ABSX, 3);
+			emit(INC_ABSX, 3);
 		break;
 
 	default:
@@ -1394,14 +1394,14 @@ void
 scan_inx(void)
 {
 	scan_token();
-	scan_emit(OP_INX, 1);
+	emit(OP_INX, 1);
 }
 
 void
 scan_iny(void)
 {
 	scan_token();
-	scan_emit(OP_INY, 1);
+	emit(OP_INY, 1);
 }
 
 void
@@ -1414,10 +1414,10 @@ scan_jmp(void)
 		if (token != ')')
 			scan_error("Expected closing paren ')'");
 		scan_token();
-		scan_emit(OP_JMPI, 3);
+		emit(OP_JMPI, 3);
 	} else {
 		scan_value();
-		scan_emit(OP_JMP, 3);
+		emit(OP_JMP, 3);
 	}
 }
 
@@ -1426,7 +1426,7 @@ scan_jsr(void)
 {
 	scan_token();
 	scan_value();
-	scan_emit(OP_JSR, 3);
+	emit(OP_JSR, 3);
 }
 
 void
@@ -1438,33 +1438,33 @@ scan_lda(void)
 	switch (addrmode) {
 
 	case AM_IMM:
-		scan_emit(LDA_IMM, 2);
+		emit(LDA_IMM, 2);
 		break;
 
 	case AM_ZPXI:
-		scan_emit(LDA_ZPXI, 2);
+		emit(LDA_ZPXI, 2);
 		break;
 
 	case AM_ZPIY:
-		scan_emit(LDA_ZPIY, 2);
+		emit(LDA_ZPIY, 2);
 		break;
 
 	case AM_ABS:
 		if (ZPADDR)
-			scan_emit(LDA_ZP, 2);
+			emit(LDA_ZP, 2);
 		else
-			scan_emit(LDA_ABS, 3);
+			emit(LDA_ABS, 3);
 		break;
 
 	case AM_ABSX:
 		if (ZPADDR)
-			scan_emit(LDA_ZPX, 2);
+			emit(LDA_ZPX, 2);
 		else
-			scan_emit(LDA_ABSX, 3);
+			emit(LDA_ABSX, 3);
 		break;
 
 	case AM_ABSY:
-		scan_emit(LDA_ABSY, 3);
+		emit(LDA_ABSY, 3);
 		break;
 
 	default:
@@ -1482,22 +1482,22 @@ scan_ldx(void)
 	switch (addrmode) {
 
 	case AM_IMM:
-		scan_emit(LDX_IMM, 2);
+		emit(LDX_IMM, 2);
 		break;
 
 	case AM_ABS:
 		if (ZPADDR)
-			scan_emit(LDX_ZP, 2);
+			emit(LDX_ZP, 2);
 		else
-			scan_emit(LDX_ABS, 3);
+			emit(LDX_ABS, 3);
 		break;
 
 	case AM_ABSX:
 	case AM_ABSY:
 		if (ZPADDR)
-			scan_emit(LDX_ZPX, 2);
+			emit(LDX_ZPX, 2);
 		else
-			scan_emit(LDX_ABSX, 3);
+			emit(LDX_ABSX, 3);
 		break;
 
 	default:
@@ -1515,21 +1515,21 @@ scan_ldy(void)
 	switch (addrmode) {
 
 	case AM_IMM:
-		scan_emit(LDY_IMM, 2);
+		emit(LDY_IMM, 2);
 		break;
 
 	case AM_ABS:
 		if (ZPADDR)
-			scan_emit(LDY_ZP, 2);
+			emit(LDY_ZP, 2);
 		else
-			scan_emit(LDY_ABS, 3);
+			emit(LDY_ABS, 3);
 		break;
 
 	case AM_ABSX:
 		if (ZPADDR)
-			scan_emit(LDY_ZPX, 2);
+			emit(LDY_ZPX, 2);
 		else
-			scan_emit(LDY_ABSX, 3);
+			emit(LDY_ABSX, 3);
 		break;
 
 	default:
@@ -1545,7 +1545,7 @@ scan_lsr(void)
 
 	if (token == T_NAME && (strcmp(tokenbuf, "a") == 0 || strcmp(tokenbuf, "A") == 0)) {
 		scan_token();
-		scan_emit(LSR_REGA, 1);
+		emit(LSR_REGA, 1);
 		return;
 	}
 
@@ -1555,16 +1555,16 @@ scan_lsr(void)
 
 	case AM_ABS:
 		if (ZPADDR)
-			scan_emit(LSR_ZP, 2);
+			emit(LSR_ZP, 2);
 		else
-			scan_emit(LSR_ABS, 3);
+			emit(LSR_ABS, 3);
 		break;
 
 	case AM_ABSX:
 		if (ZPADDR)
-			scan_emit(LSR_ZPX, 2);
+			emit(LSR_ZPX, 2);
 		else
-			scan_emit(LSR_ABSX, 3);
+			emit(LSR_ABSX, 3);
 		break;
 
 	default:
@@ -1577,7 +1577,7 @@ void
 scan_nop(void)
 {
 	scan_token();
-	scan_emit(OP_NOP, 1);
+	emit(OP_NOP, 1);
 }
 
 void
@@ -1589,33 +1589,33 @@ scan_ora(void)
 	switch (addrmode) {
 
 	case AM_IMM:
-		scan_emit(ORA_IMM, 2);
+		emit(ORA_IMM, 2);
 		break;
 
 	case AM_ZPXI:
-		scan_emit(ORA_ZPXI, 2);
+		emit(ORA_ZPXI, 2);
 		break;
 
 	case AM_ZPIY:
-		scan_emit(ORA_ZPIY, 2);
+		emit(ORA_ZPIY, 2);
 		break;
 
 	case AM_ABS:
 		if (ZPADDR)
-			scan_emit(ORA_ZP, 2);
+			emit(ORA_ZP, 2);
 		else
-			scan_emit(ORA_ABS, 3);
+			emit(ORA_ABS, 3);
 		break;
 
 	case AM_ABSX:
 		if (ZPADDR)
-			scan_emit(ORA_ZPX, 2);
+			emit(ORA_ZPX, 2);
 		else
-			scan_emit(ORA_ABSX, 3);
+			emit(ORA_ABSX, 3);
 		break;
 
 	case AM_ABSY:
-		scan_emit(ORA_ABSY, 3);
+		emit(ORA_ABSY, 3);
 		break;
 
 	default:
@@ -1628,28 +1628,28 @@ void
 scan_pha(void)
 {
 	scan_token();
-	scan_emit(OP_PHA, 1);
+	emit(OP_PHA, 1);
 }
 
 void
 scan_php(void)
 {
 	scan_token();
-	scan_emit(OP_PHP, 1);
+	emit(OP_PHP, 1);
 }
 
 void
 scan_pla(void)
 {
 	scan_token();
-	scan_emit(OP_PLA, 1);
+	emit(OP_PLA, 1);
 }
 
 void
 scan_plp(void)
 {
 	scan_token();
-	scan_emit(OP_PLP, 1);
+	emit(OP_PLP, 1);
 }
 
 void
@@ -1659,7 +1659,7 @@ scan_rol(void)
 
 	if (token == T_NAME && (strcmp(tokenbuf, "a") == 0 || strcmp(tokenbuf, "A") == 0)) {
 		scan_token();
-		scan_emit(ROL_REGA, 1);
+		emit(ROL_REGA, 1);
 		return;
 	}
 
@@ -1669,16 +1669,16 @@ scan_rol(void)
 
 	case AM_ABS:
 		if (ZPADDR)
-			scan_emit(ROL_ZP, 2);
+			emit(ROL_ZP, 2);
 		else
-			scan_emit(ROL_ABS, 3);
+			emit(ROL_ABS, 3);
 		break;
 
 	case AM_ABSX:
 		if (ZPADDR)
-			scan_emit(ROL_ZPX, 2);
+			emit(ROL_ZPX, 2);
 		else
-			scan_emit(ROL_ABSX, 3);
+			emit(ROL_ABSX, 3);
 		break;
 
 	default:
@@ -1694,7 +1694,7 @@ scan_ror(void)
 
 	if (token == T_NAME && (strcmp(tokenbuf, "a") == 0 || strcmp(tokenbuf, "A") == 0)) {
 		scan_token();
-		scan_emit(ROR_REGA, 1);
+		emit(ROR_REGA, 1);
 		return;
 	}
 
@@ -1704,16 +1704,16 @@ scan_ror(void)
 
 	case AM_ABS:
 		if (ZPADDR)
-			scan_emit(ROR_ZP, 2);
+			emit(ROR_ZP, 2);
 		else
-			scan_emit(ROR_ABS, 3);
+			emit(ROR_ABS, 3);
 		break;
 
 	case AM_ABSX:
 		if (ZPADDR)
-			scan_emit(ROR_ZPX, 2);
+			emit(ROR_ZPX, 2);
 		else
-			scan_emit(ROR_ABSX, 3);
+			emit(ROR_ABSX, 3);
 		break;
 
 	default:
@@ -1726,14 +1726,14 @@ void
 scan_rti(void)
 {
 	scan_token();
-	scan_emit(OP_RTI, 1);
+	emit(OP_RTI, 1);
 }
 
 void
 scan_rts(void)
 {
 	scan_token();
-	scan_emit(OP_RTS, 1);
+	emit(OP_RTS, 1);
 }
 
 void
@@ -1745,33 +1745,33 @@ scan_sbc(void)
 	switch (addrmode) {
 
 	case AM_IMM:
-		scan_emit(SBC_IMM, 2);
+		emit(SBC_IMM, 2);
 		break;
 
 	case AM_ZPXI:
-		scan_emit(SBC_ZPXI, 2);
+		emit(SBC_ZPXI, 2);
 		break;
 
 	case AM_ZPIY:
-		scan_emit(SBC_ZPIY, 2);
+		emit(SBC_ZPIY, 2);
 		break;
 
 	case AM_ABS:
 		if (ZPADDR)
-			scan_emit(SBC_ZP, 2);
+			emit(SBC_ZP, 2);
 		else
-			scan_emit(SBC_ABS, 3);
+			emit(SBC_ABS, 3);
 		break;
 
 	case AM_ABSX:
 		if (ZPADDR)
-			scan_emit(SBC_ZPX, 2);
+			emit(SBC_ZPX, 2);
 		else
-			scan_emit(SBC_ABSX, 3);
+			emit(SBC_ABSX, 3);
 		break;
 
 	case AM_ABSY:
-		scan_emit(SBC_ABSY, 3);
+		emit(SBC_ABSY, 3);
 		break;
 
 	default:
@@ -1784,21 +1784,21 @@ void
 scan_sec(void)
 {
 	scan_token();
-	scan_emit(OP_SEC, 1);
+	emit(OP_SEC, 1);
 }
 
 void
 scan_sed(void)
 {
 	scan_token();
-	scan_emit(OP_SED, 1);
+	emit(OP_SED, 1);
 }
 
 void
 scan_sei(void)
 {
 	scan_token();
-	scan_emit(OP_SEI, 1);
+	emit(OP_SEI, 1);
 }
 
 void
@@ -1810,29 +1810,29 @@ scan_sta(void)
 	switch (addrmode) {
 
 	case AM_ZPXI:
-		scan_emit(STA_ZPXI, 2);
+		emit(STA_ZPXI, 2);
 		break;
 
 	case AM_ZPIY:
-		scan_emit(STA_ZPIY, 2);
+		emit(STA_ZPIY, 2);
 		break;
 
 	case AM_ABS:
 		if (ZPADDR)
-			scan_emit(STA_ZP, 2);
+			emit(STA_ZP, 2);
 		else
-			scan_emit(STA_ABS, 3);
+			emit(STA_ABS, 3);
 		break;
 
 	case AM_ABSX:
 		if (ZPADDR)
-			scan_emit(STA_ZPX, 2);
+			emit(STA_ZPX, 2);
 		else
-			scan_emit(STA_ABSX, 3);
+			emit(STA_ABSX, 3);
 		break;
 
 	case AM_ABSY:
-		scan_emit(STA_ABSY, 3);
+		emit(STA_ABSY, 3);
 		break;
 
 	default:
@@ -1851,15 +1851,15 @@ scan_stx(void)
 
 	case AM_ABS:
 		if (ZPADDR)
-			scan_emit(STX_ZP, 2);
+			emit(STX_ZP, 2);
 		else
-			scan_emit(STX_ABS, 3);
+			emit(STX_ABS, 3);
 		break;
 
 	case AM_ABSX:
 	case AM_ABSY:
 		if (ZPADDR)
-			scan_emit(STX_ZPX, 2);
+			emit(STX_ZPX, 2);
 		else
 			scan_error("Zero page address required for STX with X");
 		break;
@@ -1880,14 +1880,14 @@ scan_sty(void)
 
 	case AM_ABS:
 		if (ZPADDR)
-			scan_emit(STY_ZP, 2);
+			emit(STY_ZP, 2);
 		else
-			scan_emit(STY_ABS, 3);
+			emit(STY_ABS, 3);
 		break;
 
 	case AM_ABSX:
 		if (ZPADDR)
-			scan_emit(STY_ZPX, 2);
+			emit(STY_ZPX, 2);
 		else
 			scan_error("STY with X requires zero page address");
 		break;
@@ -1902,93 +1902,40 @@ void
 scan_tax(void)
 {
 	scan_token();
-	scan_emit(OP_TAX, 1);
+	emit(OP_TAX, 1);
 }
 
 void
 scan_tay(void)
 {
 	scan_token();
-	scan_emit(OP_TAY, 1);
+	emit(OP_TAY, 1);
 }
 
 void
 scan_tsx(void)
 {
 	scan_token();
-	scan_emit(OP_TSX, 1);
+	emit(OP_TSX, 1);
 }
 
 void
 scan_txa(void)
 {
 	scan_token();
-	scan_emit(OP_TXA, 1);
+	emit(OP_TXA, 1);
 }
 
 void
 scan_txs(void)
 {
 	scan_token();
-	scan_emit(OP_TXS, 1);
+	emit(OP_TXS, 1);
 }
 
 void
 scan_tya(void)
 {
 	scan_token();
-	scan_emit(OP_TYA, 1);
-}
-
-void
-scan_emit(int opcode, int count)
-{
-	scan_emit_byte(opcode);
-
-	if (count > 1)
-		scan_emit_byte(value);
-
-	if (count > 2)
-		scan_emit_byte(value >> 8);
-}
-
-void
-scan_emit_byte(int byte)
-{
-	int index;
-
-	if (lstloc < 0)
-		lstloc = curloc;
-
-	if (pass == 1) {
-		curloc++;
-		return;
-	}
-
-	byte &= 0xff;
-
-	if (disk) {
-		if (curloc < 0x3600)
-			index = curloc - 0x1b00 + 2560; // start at track 0, sector 10
-		else if (curloc < 0x4000)
-			index = curloc - 0x3600; // start at track 0, sector 0
-		else {
-			printf("address error 0x%04x\n", curloc);
-			exit(1);
-		}
-		if (disk[index] != byte) {
-			printf("compare error at %04x expected %02x have %02x\n", curloc, disk[index], byte);
-			err_count++;
-		}
-		cmp_count++;
-	}
-
-	mem[curloc++] = byte;
-}
-
-void
-scan_emit_word(int word)
-{
-	scan_emit_byte(word);
-	scan_emit_byte(word >> 8);
+	emit(OP_TYA, 1);
 }

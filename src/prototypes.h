@@ -1,3 +1,6 @@
+void emit(int opcode, int count);
+void emit_word(int word);
+void emit_byte(int byte);
 void list(void);
 int main(int argc, char *argv[]);
 char * readfile(char *filename);
@@ -77,9 +80,6 @@ void scan_tsx(void);
 void scan_txa(void);
 void scan_txs(void);
 void scan_tya(void);
-void scan_emit(int opcode, int count);
-void scan_emit_byte(int byte);
-void scan_emit_word(int word);
 void stack_push(int value);
 int stack_pop(void);
 void stack_add(void);
