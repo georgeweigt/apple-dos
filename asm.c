@@ -485,6 +485,10 @@ main(int argc, char *argv[])
 		break;
 	case 3:
 		disk = (uint8_t *) readfile(argv[2]);
+		if (disk == NULL) {
+			printf("error reading %s\n", argv[2]);
+			exit(1);
+		}
 		break;
 	default:
 		exit(1);
@@ -492,8 +496,10 @@ main(int argc, char *argv[])
 
 	buf = readfile(argv[1]);
 
-	if (buf == NULL)
+	if (buf == NULL) {
+		printf("error reading %s\n", argv[1]);
 		exit(1);
+	}
 
 	mem = malloc(65536);
 
