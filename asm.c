@@ -275,10 +275,17 @@ extern uint8_t *disk;
 #define Z 0x02
 #define C 0x01
 void emit(int opcode, int count);
-void emit_word(int word);
 void emit_byte(int byte);
 void list(void);
 int main(int argc, char *argv[]);
+void scan_org(struct sym *p);
+void scan_equ(struct sym *p);
+void scan_asc(void);
+void scan_dci(void);
+void scan_db(void);
+void scan_dw(void);
+void scan_ddb(void);
+void scan_ds(void);
 char * readfile(char *filename);
 void scan_file(int k);
 void scan_line(void);
@@ -292,14 +299,6 @@ struct sym * scan_lookup(void);
 void scan_token(void);
 void scan_branch(void);
 void scan_value(void);
-void scan_org(struct sym *p);
-void scan_equ(struct sym *p);
-void scan_bss(void);
-void scan_ds(void);
-void scan_asc(void);
-void scan_dci(void);
-void scan_byte(void);
-void scan_word(void);
 void scan_adc(void);
 void scan_and(void);
 void scan_asl(void);
@@ -382,13 +381,6 @@ emit(int opcode, int count)
 
 	if (count > 2)
 		emit_byte(value >> 8);
-}
-
-void
-emit_word(int word)
-{
-	emit_byte(word);
-	emit_byte(word >> 8);
 }
 
 void
@@ -515,6 +507,154 @@ main(int argc, char *argv[])
 		printf("%d bytes compared\n", cmp_count);
 		printf("%d compare errors\n", err_count);
 	}
+}
+void
+scan_org(struct sym *p)
+{
+	int t = pass;
+	pass = 2; // no undefined symbols
+
+	scan_token();
+	scan_value();
+
+	if (p)
+		p->value = value;
+
+	curloc = value;
+
+	pass = t;
+}
+
+void
+scan_equ(struct sym *p)
+{
+	int t = pass;
+	pass = 2; // no undefined symbols
+
+	scan_token();
+	scan_value();
+
+	if (p)
+		p->value = value;
+
+	pass = t;
+}
+
+// like db except bit 7 is set in strings
+
+void
+scan_asc(void)
+{
+	char *s;
+	do {
+		scan_token();
+		if (token == T_QUOSTR) {
+			s = tokenbuf;
+			while (*s)
+				emit_byte(*s++ | 0x80);
+			scan_token();
+		} else {
+			scan_value();
+			emit_byte(value);
+		}
+	} while (token == ',');
+}
+
+// like db except bit 7 is set in the last char of strings
+
+void
+scan_dci(void)
+{
+	char *s;
+	do {
+		scan_token();
+		if (token == T_QUOSTR) {
+			s = tokenbuf;
+			while (s[0] && s[1])
+				emit_byte(*s++);
+			if (*s)
+				emit_byte(*s | 0x80); // last char
+			scan_token();
+		} else {
+			scan_value();
+			emit_byte(value);
+		}
+	} while (token == ',');
+}
+
+// define bytes
+
+void
+scan_db(void)
+{
+	char *s;
+	do {
+		scan_token();
+		// if 1 char then it can be used in an arithmetic expression
+		if (token == T_QUOSTR && tokenlen != 1) {
+			s = tokenbuf;
+			while (*s)
+				emit_byte(*s++);
+			scan_token();
+		} else {
+			scan_value();
+			emit_byte(value);
+		}
+	} while (token == ',');
+}
+
+// define words
+
+void
+scan_dw(void)
+{
+	do {
+		scan_token();
+		scan_value();
+		emit_byte(value);
+		emit_byte(value >> 8);
+	} while (token == ',');
+}
+
+// like dw except emit high byte first
+
+void
+scan_ddb(void)
+{
+	do {
+		scan_token();
+		scan_value();
+		emit_byte(value >> 8);
+		emit_byte(value);
+	} while (token == ',');
+}
+
+// define storage
+
+void
+scan_ds(void)
+{
+	int i, n, t = pass;
+	pass = 2; // no undefined symbols
+
+	scan_token(); // skip 'ds'
+	scan_value();
+
+	if (token != ',') {
+		curloc += value;
+		pass = t;
+		return;
+	}
+
+	n = value;
+
+	scan_token(); // skip ','
+	scan_value();
+
+	pass = t;
+
+	for (i = 0; i < n; i++)
+		emit_byte(value);
 }
 char *
 readfile(char *filename)
@@ -677,20 +817,12 @@ scan_line(void)
 			scan_brk();
 			break;
 		}
-		if (strcmp(tokenbuf, "bss") == 0) {
-			scan_bss();
-			break;
-		}
 		if (strcmp(tokenbuf, "bvc") == 0) {
 			scan_bvc();
 			break;
 		}
 		if (strcmp(tokenbuf, "bvs") == 0) {
 			scan_bvs();
-			break;
-		}
-		if (strcmp(tokenbuf, "byte") == 0) {
-			scan_byte();
 			break;
 		}
 		err = 1;
@@ -730,11 +862,15 @@ scan_line(void)
 
 	case 'd':
 		if (strcmp(tokenbuf, "db") == 0 || strcmp(tokenbuf, "dfb") == 0) {
-			scan_byte();
+			scan_db();
 			break;
 		}
 		if (strcmp(tokenbuf, "dci") == 0) {
 			scan_dci();
+			break;
+		}
+		if (strcmp(tokenbuf, "ddb") == 0) {
+			scan_ddb();
 			break;
 		}
 		if (strcmp(tokenbuf, "dec") == 0) {
@@ -753,8 +889,8 @@ scan_line(void)
 			scan_ds();
 			break;
 		}
-		if (strcmp(tokenbuf, "dw") == 0 || strcmp(tokenbuf, "ddb") == 0) {
-			scan_word();
+		if (strcmp(tokenbuf, "dw") == 0) {
+			scan_dw();
 			break;
 		}
 		err = 1;
@@ -935,14 +1071,6 @@ scan_line(void)
 		}
 		if (strcmp(tokenbuf, "tya") == 0) {
 			scan_tya();
-			break;
-		}
-		err = 1;
-		break;
-
-	case 'w':
-		if (strcmp(tokenbuf, "word") == 0) {
-			scan_word();
 			break;
 		}
 		err = 1;
@@ -1366,144 +1494,6 @@ scan_value(void)
 	stackindex = 0;
 	scan_expr();
 	value = stack_pop();
-}
-
-void
-scan_org(struct sym *p)
-{
-	int t = pass;
-	pass = 2; // no undefined symbols
-
-	scan_token();
-	scan_value();
-
-	if (p)
-		p->value = value;
-
-	curloc = value;
-
-	pass = t;
-}
-
-void
-scan_equ(struct sym *p)
-{
-	int t = pass;
-	pass = 2; // no undefined symbols
-
-	scan_token();
-	scan_value();
-
-	if (p)
-		p->value = value;
-
-	pass = t;
-}
-
-void
-scan_bss(void)
-{
-	int t = pass;
-	pass = 2; // no undefined symbols
-
-	scan_token();
-	scan_value();
-
-	curloc += value;
-
-	pass = t;
-}
-
-void
-scan_ds(void)
-{
-	int i, n, t = pass;
-	pass = 2; // no undefined symbols
-
-	scan_token(); // skip 'ds'
-	scan_value();
-
-	if (token != ',') {
-		curloc += value;
-		pass = t;
-		return;
-	}
-
-	n = value;
-
-	scan_token(); // skip ','
-	scan_value();
-
-	pass = t;
-
-	for (i = 0; i < n; i++)
-		emit_byte(value);
-}
-
-void
-scan_asc(void)
-{
-	char *s;
-	do {
-		scan_token();
-		if (token == T_QUOSTR) {
-			s = tokenbuf;
-			while (*s)
-				emit_byte(*s++ | 0x80);
-			scan_token();
-		} else {
-			scan_value();
-			emit_byte(value | 0x80);
-		}
-	} while (token == ',');
-}
-
-void
-scan_dci(void)
-{
-	char *s;
-	do {
-		scan_token();
-		if (token == T_QUOSTR) {
-			s = tokenbuf;
-			while (s[0] && s[1])
-				emit_byte(*s++);
-			if (*s)
-				emit_byte(*s | 0x80); // last char
-			scan_token();
-		} else {
-			scan_value();
-			emit_byte(value);
-		}
-	} while (token == ',');
-}
-
-void
-scan_byte(void)
-{
-	char *s;
-	do {
-		scan_token();
-		if (token == T_QUOSTR && tokenlen > 1) {
-			s = tokenbuf;
-			while (*s)
-				emit_byte(*s++);
-			scan_token();
-		} else {
-			scan_value();
-			emit_byte(value);
-		}
-	} while (token == ',');
-}
-
-void
-scan_word(void)
-{
-	do {
-		scan_token();
-		scan_value();
-		emit_word(value);
-	} while (token == ',');
 }
 
 void

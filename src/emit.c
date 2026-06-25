@@ -11,13 +11,6 @@ emit(int opcode, int count)
 }
 
 void
-emit_word(int word)
-{
-	emit_byte(word);
-	emit_byte(word >> 8);
-}
-
-void
 emit_byte(int byte)
 {
 	int index;
