@@ -501,14 +501,12 @@ main(int argc, char *argv[])
 	buf = readfile(argv[1]);
 
 	if (buf == NULL)
-		return 1;
+		exit(1);
 
 	mem = malloc(65536);
 
-	if (mem == NULL) {
-		printf("malloc kaput\n");
-		return 1;
-	}
+	if (mem == NULL)
+		exit(1);
 
 	scan_file(1);
 	scan_file(2);
