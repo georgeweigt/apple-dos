@@ -5,7 +5,7 @@ make
 ./asm apple-dos.s > listing.txt
 ```
 
-Verify assembled code by comparing with DOS 3.3 disk
+Compare assembled code with Apple DOS 3.3 disk
 
 ```
 ./check
