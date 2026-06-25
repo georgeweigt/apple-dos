@@ -5628,10 +5628,6 @@ FIXIT2          EQU          *
                 LDA          CCBRLN                    ;Current record length lo
                 STA          DCBCSB                    ;Current sector byte
                 STA          DCBCRR                    ;Current relative record
-;;;;;                LDA          CCBRLN+1                  ;Do hi as well
-;;;;;                STA          DCBCSB+1
-;;;;;                STA          DCBCRR+1
-;;;;;                STA          DCBCRS                    ;Set current relative sector
                 TSX
                 STX          ENTSTK
                 JMP          GOODIO
