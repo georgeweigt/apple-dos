@@ -1,4 +1,4 @@
-Build `asm` and generate a listing
+Build `asm` and generate a listing (`%` is shell prompt)
 
 ```
 % make
