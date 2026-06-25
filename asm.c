@@ -399,10 +399,10 @@ emit_byte(int byte)
 	byte &= 0xff;
 
 	if (disk) {
-		if (curloc < 0x3600)
-			index = curloc - 0x1b00 + 2560; // start at track 0, sector 10
-		else if (curloc < 0x4000)
-			index = curloc - 0x3600; // start at track 0, sector 0
+		if (curloc >= 0x1b00 && curloc < 0x3600)
+			index = curloc - 0x1b00 + 2560; // track 0, sector 10
+		else if (curloc >= 0x3600 && curloc < 0x4000)
+			index = curloc - 0x3600; // track 0, sector 0
 		else {
 			printf("address error 0x%04x\n", curloc);
 			exit(1);
