@@ -1,2 +1,1 @@
-#/bin/bash
 ./asm apple-dos.s "Apple DOS 3.3 January 1983.dsk"
