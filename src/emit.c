@@ -31,7 +31,7 @@ emit_byte(int byte)
 		else if (curloc >= 0x3600 && curloc < 0x4000)
 			index = curloc - 0x3600; // track 0, sector 0
 		else {
-			printf("address error 0x%04x\n", curloc);
+			printf("address %04x is out of range\n", curloc);
 			exit(1);
 		}
 		if (disk[index] != byte) {
