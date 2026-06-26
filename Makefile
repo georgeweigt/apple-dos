@@ -8,7 +8,7 @@ asm.c: src/LICENSE src/defs.h src/prototypes.h src/*.c
 
 all:
 	make -C src prototypes.h
-	make
+	make asm
 
 check:
 	./asm apple-dos.s "Apple DOS 3.3 January 1983.dsk"
