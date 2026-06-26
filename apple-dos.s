@@ -1,3 +1,7 @@
+;;; This file has the append fix removed to match the January 1983 disk image.
+
+;;; Three semicolons indicate changes to the original source code.
+
 ; ####################################################################################################
 ; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
 ; #   FILE NAME:  DOS33C
@@ -4415,17 +4419,17 @@ FIXIT           EQU          *
 *
 ;;;                REP          30
 ;;;                SKP          1
-;;;;FIXIT2          EQU          *
-;;;;;                LDA          CCBRLN                    ;Current record length lo
-;;;;;                STA          DCBCSB                    ;Current sector byte
-;;;;;                STA          DCBCRR                    ;Current relative record
-;;;;;                LDA          CCBRLN+1                  ;Do hi as well
-;;;;;                STA          DCBCSB+1
-;;;;;                STA          DCBCRR+1
-;;;;;                STA          DCBCRS                    ;Set current relative sector
-;;;;;                TSX
-;;;;;                STX          ENTSTK
-;;;;;                JMP          GOODIO
+;;;FIXIT2          EQU          *
+;;;                LDA          CCBRLN                    ;Current record length lo
+;;;                STA          DCBCSB                    ;Current sector byte
+;;;                STA          DCBCRR                    ;Current relative record
+;;;                LDA          CCBRLN+1                  ;Do hi as well
+;;;                STA          DCBCSB+1
+;;;                STA          DCBCRR+1
+;;;                STA          DCBCRS                    ;Set current relative sector
+;;;                TSX
+;;;                STX          ENTSTK
+;;;                JMP          GOODIO
 ;;;                SKP          2
 ;;;                REP          30
 *
@@ -5623,7 +5627,7 @@ OFF80           EQU          *
                 STA          $C00C                     ; TURNS 80 COL OFF
                 STA          $C00E                     ; TURN OFF ALT CHAR SET
                 JMP          $FB2F                     ; MONITOR INIT ROUTINE
-
+;;; Start of code added to match January 1983 disk image
 FIXIT2          EQU          *
                 LDA          CCBRLN                    ;Current record length lo
                 STA          DCBCSB                    ;Current sector byte
@@ -5631,6 +5635,7 @@ FIXIT2          EQU          *
                 TSX
                 STX          ENTSTK
                 JMP          GOODIO
+;;; End of FIXIT2
 ;;;                PAGE
 PEC1            EQU          *                         ;Tell relocater where to stop
 PD1             EQU          >*
