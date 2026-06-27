@@ -1,0 +1,56 @@
+; ####################################################################################################
+; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
+; #   FILE NAME:  TEMPY
+; ####################################################################################################
+
+***********************************************
+*
+* GHOST APPEND BUG PATCH BY
+* BILL GRIMM
+*
+***********************************************
+MOVEOF          EQU          *
+                LDX          CMDNO                     ; GET CMD NUMBER
+                CPX          #$1C                      ; APPEND COMMAND?
+                BEQ          GOON                      ; YES, RETURN TO CALLING ROUTINE
+                LDX          #$00                      ; NO, THEN CLEAR X
+                STX          EOFFLAG                   ; CLEAR EOF FLAG
+GOON            RTS
+***********************************************
+*
+* TURN Apple //e 80 COLUMN CARD
+* OFF & INIT APPLE
+*
+***********************************************
+OFF80           EQU          *
+                LDA          #$FF
+                STA          $4FB                      ; CLEARS FUNNY 80 COL STUFF
+                STA          $C00C                     ; TURNS 80 COL OFF
+                STA          $C00E                     ; TURN OFF ALT CHAR SET
+                JSR          $FB2F                     ; MONITOR INIT ROUTINE
+                JMP          HOME                      ; CLEAR 80 COL GARBAGE
+***********************************************
+*
+* FIXIT2 was developed to fix the wrap around
+* problem APPEND has when trying to APPEND to
+* a sequential file which is >255 sectors in
+* length.
+*          Fix by BANKS/BACHMAN
+*           September 28, 1982
+*
+***********************************************
+                SKP          1
+FIXIT2          EQU          *
+                LDA          CCBRLN                    ;Store current rec len low byte
+                STA          DCBCSB                    ;in current sector byte
+                STA          DCBCRR                    ;and in current relative rec
+                TSX                                    ;Save status in ENTSTK
+                STA          ENTSTK                    ;for proper exit from GOODIO
+                JMP          GOODIO                    ;
+
+; ####################################################################################################
+; #   END OF FILE:  TEMPY
+; #   LINES      :  44
+; #   CHARACTERS :  1976
+; #   Formatter  :  Assembly Language Reformatter 1.0.2 (07 January 1998)
+; ####################################################################################################

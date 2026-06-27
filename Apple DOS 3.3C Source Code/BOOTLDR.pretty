@@ -1,0 +1,448 @@
+; ####################################################################################################
+; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
+; #   FILE NAME:  BOOTLDR
+; ####################################################################################################
+
+                SBTL         '16-SECTOR DOS BOOT'
+HERE3L          EQU          >*
+REMDR3          EQU          256-HERE3L
+                ORG          *+REMDR3
+TRK0LDR         EQU          *
+                DO           >TRK0LDR
+                ???                                    ;DELIBERATE ERROR IF NOT AT PAGE BOUNDARY
+                FIN
+***************************
+*                         *
+* 16-SECTOR DOS BOOTSTRAP *
+*                         *
+*     RICK AURICCHIO      *
+*       10/10/79          *
+*                         *
+***************************
+*                         *
+* THIS PROGRAM RESIDES IN *
+*  TRACK 0, SECTOR 0 OF A *
+*  DOS DISKETTE. ITS SOLE *
+*  PURPOSE IS TO READ THE *
+*  DOS LOADER PROGRAM IN  *
+*  FROM TRACK 0, SECTORS  *
+*  1-9. CONTROL IS THEN   *
+*  TRANSFERRED TO THAT    *
+*  PROGRAM.               *
+*                         *
+* NOTE: THE DOS LOADER    *
+*  CONTAINS THE ENTIRE    *
+*  SET OF 16-SECTOR CORE  *
+*  ROUTINES; THOSE CORE   *
+*  ROUTINES ARE USED TO   *
+*  LOAD THE REST OF THE   *
+*  DOS IMAGE INTO MEMORY. *
+*                         *
+***************************
+POINTA          EQU          $26                       ;BUFFER POINTER
+BSLOT           EQU          $2B                       ;BOOT BSLOT
+BSECTR          EQU          $3D                       ;LAST BSECTR READ
+BTEMP           EQU          $3E                       ;ADDRESS BTEMP
+BRETRY          EQU          $5C                       ;OFFSET TO READER
+*
+MONINIT         EQU          $FB2F                     ;MONINIT SCREEN
+BHERE3          EQU          >*
+BOOTCNT         EQU          $800+BHERE3
+                DFB          01
+                PAGE
+                LDA          POINTA+1                  ;WHERE DID BSECTR GET LOADED?
+                CMP          #09                       ; (AT 0800)?
+                BNE          READNEXT                  ;=>NO. WE'RE LOADING SOMETHING
+* WE'VE BEEN BOOTED. SET UP
+*  PARAMS FOR BOOT PROM SO
+*  THAT WE'LL READ IN TRACK 0,
+*  BSECTRS 00-09.
+                LDA          BSLOT                     ;GET BOOT BSLOT
+                LSR          A                         ;CONVERT TO CX00
+                LSR          A
+                LSR          A
+                LSR          A
+                ORA          #$C0
+                STA          BTEMP+1
+                LDA          #BRETRY                   ;PROM ROUTINE OFFSET
+                STA          BTEMP
+                CLC                                    ;BUMP LOAD ADDRESS UP TO
+                LDA          LOADADDR+1                ; LAST PAGE SO WE
+                ADC          BGRPGC                    ;  CAN LOAD 'EM BACKWARDS...
+                STA          LOADADDR+1
+* READ IN ANOTHER BSECTR FROM
+*  TRACK ZERO...
+READNEXT        LDX          BGRPGC
+                BMI          GOLOADER                  ;=>ALL DONE...EXECUTE IT!
+                LDA          TABLE,X                   ;GET PHYSICAL BSECTR NUMBER
+                STA          BSECTR                    ; AND SET FOR BOOT PROM READ
+                DEC          BGRPGC                    ;ONE LESS BELL TO ANSWER..
+                LDA          LOADADDR+1                ;GET LOAD ADDRESS
+                STA          POINTA+1                  ; FOR BSECTR READ
+                DEC          LOADADDR+1                ;MOVE LOAD ADDRESS DOWN A PAGE
+                LDX          BSLOT                     ;RESTORE BSLOT NUMBER
+                JMP          (BTEMP)                   ;READ MORE OF TRACK 0
+GOLOADER        INC          LOADADDR+1                ;ENTRY AT SECOND PAGE
+                INC          LOADADDR+1
+                JSR          SETKBD                    ;CLEAR IN#X
+                JSR          SETVID                    ; AND PR#X
+                JSR          MONINIT                   ;MONINIT THE SCREEN PARAMS
+                LDX          BSLOT                     ;PASS BSLOT NBR TO LOADER
+                JMP          (LOADADDR)                ;OFF TO LOOADER!
+* TABLE OF PHYSICAL BSECTR NUMBERS
+*  WHICH CORRESPOND TO THE LOGICAL
+*  BSECTRS 0-F ON TRACK ZERO...
+BHERE2          EQU          >*
+TABLE           EQU          $800+BHERE2
+                DFB          $00,13,11                 ;00->00,01->13,02->11
+                DFB          09,07,05                  ;03->09,04->07;05->05
+                DFB          03,01,14                  ;06->03,07->01,08->14
+                DFB          12,10,08                  ;09->12,10->10,11->08
+                DFB          06,04,02,15               ;12->6,13->04,14->02,15->15
+                PAGE
+                REP          40
+* APPEND BUG PATCHES
+****************************
+SC3             EQU          *
+EOFFLAG         DFB          0
+CLOSFILE        EQU          *
+                JSR          FILSRC                    ;FILE BUFFER FOUND?
+                BCS          NOTFOUND                  ;=> NO, SO SKIP IT.
+                LDA          #0                        ;YES, CLOSE IT
+                TAY
+                STA          EOFFLAG
+                STA          (ZPGWRK),Y                ;RIGHT NOW
+NOTFOUND        LDA          CCBSTA                    ;ORIGINAL INSTRUCTION
+                JMP          ERROR                     ;BACK TO ERROR HANDLER
+****************************
+BUMPER          EQU          *
+                LDA          EOFFLAG                   ;SHOULD WE?
+                BEQ          GOBACK                    ;=> NO
+                INC          CCBRRN                    ;BUMP CCB RECORD NUMBER
+                BNE          GOBACK
+                INC          CCBRRN+1                  ;TO GET TO NEXT SECTOR
+GOBACK          LDA          #0
+                STA          EOFFLAG                   ;TURN FLAG OFF
+                JMP          FIXIT2                    ;Go to FIXIT2 as exit
+                REP          40
+VPATCH          EQU          *
+                STA          CCBRQM                    ;ORIGINAL INSTRUCTION
+                JSR          DOSGO                     ;GO SAVE
+                JSR          ECLOSE                    ;CLOSE THE FILE
+                JMP          EVAR                      ;GO VERIFY IT AFTER SAVE
+****************************
+EOFFIX          EQU          *
+                LDY          #$13                      ;PEEK INTO THE FCB: IF
+CHKFILE         LDA          (ZPGFCB),Y                ;DCBCRS,DCBCSB ARE ZEROS,
+                BNE          FIXIT                     ; THEN WE HAVE EMPTY FILE
+                INY
+                CPY          #$17
+                BNE          CHKFILE
+                LDY          #$19
+MOVE            LDA          (ZPGFCB),Y                ; DCBCRR,DCBCRB
+                STA          CCBRRN-$19,Y              ;INTO CCBRRN,CCBBYT
+                INY
+                CPY          #$1D
+                BNE          MOVE
+BACK            JMP          DOSGO2A                   ;NOW LET APPEND CONTINUE
+FIXIT           EQU          *
+                LDX          #$FF                      ;SET FLAG SO APPEND WILL
+                STX          EOFFLAG                   ;KNOW TO CROSS SECTOR BOUNDARY
+                BNE          BACK                      ;ALWAYS TAKEN
+                PAGE
+                REP          40
+* END OF BOOT PAGE DATA SETUP
+                REP          40
+*
+* FIXIT2 was developed to fix the wrap around
+* problem APPEND has when trying to APPEND to
+* a sequential file which is >255 sectors in length.
+*
+*                  Fix by
+*
+*              Fern Bachman
+*               Guil Banks
+*           September 28, 1982
+*
+* Fix to fix added to correctly APPEND to a sector
+* 255 bytes in length
+*
+*                    by
+*                Guil Banks
+*               July 11, 1983
+*
+                REP          30
+                SKP          1
+FIXIT2          EQU          *
+                LDA          CCBRLN                    ;Current record length lo
+                STA          DCBCSB                    ;Current sector byte
+                STA          DCBCRR                    ;Current relative record
+                LDA          CCBRLN+1                  ;Do hi as well
+                STA          DCBCSB+1
+                STA          DCBCRR+1
+                STA          DCBCRS                    ;Set current relative sector
+                TSX
+                STX          ENTSTK
+                JMP          GOODIO
+                SKP          2
+                REP          30
+*
+*   Upper/Lower case patch
+*   for DOS 3.3C and BASIC
+*
+*            by
+*        Guil Banks
+*        Mark Houde
+*
+                REP          30
+*
+* This routine converts all characters
+* that are not between quotes to
+* upper case and returns them to the
+* input buffer ($200). This works with
+* DOS, Integer & Applesoft.
+*
+* Upon entry -
+*
+*              X Reg = 0
+*
+* Upon exit  -
+*
+*              Y Reg = $FF
+*              ACCUM = $8D
+*              X Reg = unknown
+*
+                REP          30
+                DO           ULC
+UPRCASE         EQU          *
+LUP1            LDA          LBUFF,X                   ;Get a char
+                CMP          #'"+$80                   ;Is it a quote?
+                BNE          CHK4UC                    ;=> if not
+LUP2            INX                                    ;Bump to next char
+                LDA          LBUFF,X                   ;Get it
+                CMP          #'"+$80                   ;Closing quote?
+                BEQ          NEXTCHR                   ;=> if so
+                CMP          #$8D                      ;End of line?
+                BNE          LUP2                      ;=> if not
+ULFINI          LDY          #$FF                      ;Do what DOS wants
+                STY          CMDNO
+                RTS                                    ;   & exit
+CHK4UC          EQU          *
+                CMP          #$E0                      ;Upper case?
+                BCC          CHK4CR                    ;=> if not
+                AND          #$DF                      ;Make upper case
+                STA          LBUFF,X                   ;   & restore
+CHK4CR          CMP          #$8D                      ;End of input?
+                BEQ          ULFINI                    ;=> if so
+NEXTCHR         INX                                    ;Bump to next char
+                BNE          LUP1                      ;=> always
+                FIN
+                SKP          1
+BHERE1          EQU          >*
+                DS           $FD-BHERE1,0
+* LOAD ADDRESS FOR CODE (PG BDY)
+* ENTRY AFTER BOOT IS AT LOADADDR+256 (SECOND PAGE LOADED)
+*
+BHERE4          EQU          >*
+LOADADDR        EQU          $800+BHERE4
+                DFB          0
+GRSPG           DFB          <TRK0LDR                  ;CONTAINS PAGE#-1 OF TRK 0, SEC 1 LOAD ADDRESS
+* LAST LOGICAL BSECTOR TO READ STARTING AT $00
+BHERE5          EQU          >*
+BGRPGC          EQU          $800+BHERE5
+GRPGC           DFB          <ENDOFDOS-TRK0LDR-$100
+********************
+                PAGE
+DOSLODR         EQU          *
+                DO           >DOSLODR
+                ???                                    ;ERROR IF NOT ON PAGE BOUNDARY
+                FIN
+                REP          40
+* FAST BOOT AT 2:1 INTERLEAVE
+* FOR 16-SECTOR DISKETTES
+                REP          40
+                STX          IBSLOT                    ; SET BOOT SLOT
+                STX          IBPSLT                    ; SET PREVIOUS SLOT
+                LDA          #1                        ; SET PREV DRIVE
+                STA          IBPDRV
+                STA          IBDRVN
+;
+                LDA          NDPGS                     ; COPY NO PAGES TO GET
+                STA          BRWCNT
+                LDA          #2
+                STA          IBTRK                     ; SET TRACK 0
+                LDA          #4                        ;ENDING SECTOR OF DOS IMAGE
+                STA          IBSECT                    ;TO IOB
+                LDY          ADOSLD+1                  ;END PAGE OF DOS IMAGE
+                DEY                                    ;IS ONE LESS THAN
+                STY          IBBUFP+1                  ;START OF DOSLDR+BOOT
+;
+                LDA          #IBCRTS                   ; SET READ
+                STA          IBCMD
+;
+                TXA                                    ; SET PREV TRACK = 0
+                LSR          A
+                LSR          A
+                LSR          A
+                LSR          A
+                TAX
+                LDA          #0
+                STA          $4F8,X
+                STA          $478,X
+                JSR          BOOTIO                    ; GO READ DOS
+;
+;DOSINT - INITIALIZE DOS
+;
+DOSINT          EQU          *
+                LDX          #$FF
+                TXS
+                STX          IBVOL
+                JMP          RCPATCH
+RCBACK          JSR          SETKBD
+;
+DI3             JMP          DOSREL                    ; GO TO POST INIT ROUTINE
+                PAGE
+WBOOT           EQU          *
+                LDA          ADOSLD+1
+                SEC
+                SBC          IBBUFP+1
+                STA          BRWCNT                    ;COMPUT PAGE COUNT
+                LDA          ADOSLD+1
+                STA          IBBUFP+1                  ;BUFFER=LAST PAGE OF RWTS
+                DEC          IBBUFP+1
+                LDA          #2                        ;ENDING TRACK
+                STA          IBTRK
+                LDA          #4
+                STA          IBSECT                    ;ENDING SECTOR
+                LDA          #2
+                STA          IBCMD                     ;COMMAND = WRITE
+                JSR          BOOTIO                    ;WRITE DOS IMAGE TRK 2,SEC 4
+*   ;           BACKWARDS TO TRK 0,SEC C
+                LDA          ADOSLD+1
+                STA          GRSPG                     ;BOOTSTRAP LOAD ADDRESS
+                CLC
+                ADC          #9
+                STA          IBBUFP+1                  ;BUFFER ADDRESS OF END OF BOOT
+                LDA          #10
+                STA          BRWCNT                    ;SECTOR COUNT TO WRITE
+                SEC
+                SBC          #1
+                STA          GRPGC                     ;BOOT LAST SECTOR #
+                STA          IBSECT                    ;START AT END OF RWTS&BOOT
+                JSR          BOOTIO                    ;AND WRITE DOWN TO ZERO
+                RTS
+                DS           6,0                       ;FILL WITH BRKS
+                PAGE
+BOOTIO          EQU          *
+                LDA          BAIOB+1
+                LDY          BAIOB
+                JSR          DISKIO
+;
+                LDY          IBSECT                    ; GET SECTOR
+                DEY                                    ; DECREMENT TO NEXT
+                BPL          BIO1                      ;AT END OF TRACK?
+                LDY          #15                       ;SET TO SECTOR 15
+                NOP
+                NOP
+                DEC          IBTRK
+BIO1            STY          IBSECT                    ; SET NEXT SECTOR
+;
+                DEC          IBBUFP+1                  ; DECREMENT BUFFER POINTER
+                DEC          BRWCNT                    ; DECREMENT PAGE COUNTER
+                BNE          BOOTIO                    ; BR IF NOT DONE
+                RTS
+;
+                PAGE
+DISKIO          PHP                                    ;SAVE INTERUPT STATUS
+                SEI                                    ;INHIBIT INTERUPT WHILE
+                JSR          RWTS                      ; ACCESSING DISK
+                BCS          DSKERR                    ;MUST PASS BACK CARRY FLAG & INTERUPT
+                PLP
+                CLC
+                RTS
+DSKERR          PLP                                    ;CARRY SET MEANS ERROR
+                SEC
+                RTS
+DLDSUP          LDA          CCBBSA                    ;SET UP FOR DOS LOADER
+                STA          IBBUFP+1                  ;START ADDRESS
+                LDA          #0
+                STA          IBBUFP
+                LDA          DCBVOL                    ;INVERT VOLUME NUMBER
+                EOR          #$FF
+                STA          IBVOL
+                RTS
+;
+CLRSEC          LDA          #0                        ;CLEAR SECTOR
+                TAY
+CS1             STA          (ZPGFCB),Y
+                INY
+                BNE          CS1
+                RTS
+                BRK
+EC3             EQU          *
+NDPGS           DFB          <TRK0LDR-BEGIN            ;CALC #PAGES IN DOS WITHOUT RWTS
+BRWCNT          DFB          0                         ;WRK CTR FOR BOOTIO
+                DFB          $0A
+                DFB          $1B
+BAIOB           DW           IOB
+ADOSLD          DW           TRK0LDR
+                PAGE
+;
+;IOB - INPUT / OUTPUT CONTROL BLOCK
+;THE IOB IS USED FOR THE INTERFACE
+;BETWEEN DOS AND THE DISK I/O ROUTINES
+;
+IOB             EQU          *
+IBTYPE          DFB          1                         ; IOB TYPE CODE
+IBSLOT          DFB          6*16                      ; CONTROLLER SLOT NO.
+IBDRVN          DFB          1                         ; DRIVE NUMBER
+IBVOL           DFB          $00                       ; VOLUME NUMBER
+IBTRK           DFB          0                         ; TRACK NUMBER
+IBSECT          DFB          0                         ; SECTOR NUMBER
+IBDCTP          DW           DCT
+IBBUFP          DW           0                         ; POINTER TO BUFFER
+IBDLEN          DW           256                       ; DATA LENGTH
+IBCMD           DFB          0                         ; COMMAND
+IBCNUL          EQU          0                         ; 0-NULL COMMAND
+IBCRTS          EQU          1                         ; 1-READ TRACK, SECTOR
+IBCWTS          EQU          2                         ; 2-WRITE TRACK, SECTOR
+IBFMT           EQU          4                         ; 4-FORMAT DISK
+IBBOOT          EQU          8                         ; 8-WRITE BOOT
+IBSTAT          DFB          0                         ; STATUS
+IBRERR          EQU          $80                       ; READ ERR
+IBDERR          EQU          $40                       ; DRIVE ERR
+IBVMME          EQU          $20                       ; VOLUME MISMATCH
+IBWPER          EQU          $10                       ; WRITE PROTECT ERROR
+IBSMOD          DFB          0                         ; STATUS MODIFIER BYTE
+IBPSLT          DFB          6*16                      ; PREVIOUS SLOT
+IBPDRV          DFB          1                         ; PREVIOUS DRIVE
+IBSPAR          DS           2,0                       ; IOB SPARES
+DCT             DFB          0,1,$EF,$D8
+                DS           1,0                       ;FILL IN 3700 PAGE
+                PAGE
+;
+;FILE DIRECTORY DEFINITION
+;
+                DSECT
+FILDIR          EQU          *
+FDUCDE          DS           1                         ; FILE USE CODE
+FDLTRK          DS           1                         ; LINK TO NEXT DIR TRACK
+FDLSEC          DS           1                         ; LINT TO NEXT DIR SECTOR
+FDNSA           DS           1                         ; NO SECTORS ALLOCATED
+FDLSDL          DS           1                         ; LAST SECTOR DATA LENGTH
+FDFRS           DS           2                         ; 1ST RELATIVE SECTOR IN THIS DIR
+FDSPAR          DS           5                         ; SPARES
+;
+FDENT           DS           1                         ; START OF FILE ENTRIES (122)
+FDTRK           EQU          0                         ; TRACK
+FDSEC           EQU          1                         ; SECTOR
+;
+FDLAST          EQU          FILDIR+256
+                DEND
+
+; ####################################################################################################
+; #   END OF FILE:  BOOTLDR
+; #   LINES      :  436
+; #   CHARACTERS :  19320
+; #   Formatter  :  Assembly Language Reformatter 1.0.2 (07 January 1998)
+; ####################################################################################################

@@ -1,0 +1,177 @@
+; ####################################################################################################
+; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
+; #   FILE NAME:  POSTNRD
+; ####################################################################################################
+
+                SBTL         '16-SECTOR POSTNIBLIZE'
+***************************
+*                         *
+*    POSTNIBLIZE SUBR     *
+*    16-SECTOR FORMAT     *
+*                         *
+***************************
+*                         *
+*  CONVERTS 6-BIT NIBLS   *
+*  OF FORM 00ABCDEF IN    *
+*  NBUF1 AND NBUF2 INTO   *
+*  256 BYTES OF USER      *
+*  DATA IN BUF.           *
+*                         *
+*   ---- ON ENTRY ----    *
+*                         *
+*  X-REG: HOLDS SLOTNUM   *
+*            TIMES $10.   *
+*                         *
+*  BUF IS 2-BYTE POINTER  *
+*    TO 256 BYTES OF USER *
+*    DATA TO BE CONVERTED *
+*    TO 6-BIT NIBLS IN    *
+*    NBUF1 AND NBUF2      *
+*    PRIOR TO WRITE.      *
+*                         *
+*  T0 CONTAINS BYTE COUNT *
+*    CODE 0 = 256 BYTES   *
+*    CODE 1 =   1 BYTE    *
+*    CODE 2 =   2 BYTER   *
+*                         *
+*    CODE 255=255 BYTES   *
+*                         *
+*   ---- ON EXIT -----    *
+*                         *
+*  A-REG UNCERTAIN.       *
+*  Y-REG SAME AS T0.      *
+*  X-REG UNCERTAIN.       *
+*  CARRY SET.             *
+*                         *
+*  6-BIT NIBLS OF FORM    *
+*    00ABCDEF IN NBUF1    *
+*    AND NBUF2.           *
+*      (342 NIBLS)        *
+***************************
+POSTNB16        LDY          #0                        USER DATA BUF IDX.
+POST1           LDX          #$56                      INIT NBUF2 INDEX.
+POST2           DEX          NBUF                      IDX $55 TO $0.
+                BMI          POST1                     WRAPAROUND IF NEG.
+                LDA          NBUF1,Y
+                LSR          NBUF2,X                   SHIFT 2 BITS FROM
+                ROL          A                         CURRENT NBUF2 NIBL
+                LSR          NBUF2,X                   INTO CURRENT NBUF1
+                ROL          A                         NIBL.
+                STA          (BUF),Y                   BYTE OF USER DATA.
+                INY          NEXT                      USER BYTE.
+                CPY          T0                        DONE IF EQUAL T0.
+                BNE          POST2
+                RTS          RETURN.
+                SBTL         '16-SECTOR READ'
+**************************
+*                        *
+*     READ SUBROUTINE    *
+*   (16-SECTOR FORMAT)   *
+*                        *
+**************************
+*                        *
+*    READS 6-BIT NIBLS   *
+*     (00ABCDEF) INTO    *
+*     NBUF1 AND NBUF2    *
+*    CONVERTING 7-BIT    *
+*     NIBLS TO 6-BIT     *
+*    VIA 'DNIBL' TABLE   *
+*                        *
+*  FIRST READS NBUF2     *
+*          HIGH TO LOW,  *
+*  THEN READS NBUF1      *
+*          LOW TO HIGH.  *
+*                        *
+*   ---- ON ENTRY ----   *
+*                        *
+*  X-REG: SLOTNUM        *
+*         TIMES $10.     *
+*                        *
+*  READ MODE (Q6L, Q7L)  *
+*                        *
+*   ---- ON EXIT -----   *
+*                        *
+*  CARRY SET IF ERROR.   *
+*                        *
+*  IF NO ERROR:          *
+*     A-REG HOLDS $AA.   *
+*     X-REG UNCHANGED.   *
+*     Y-REG HOLDS $00.   *
+*     CARRY CLEAR.       *
+*                        *
+*     NBUF1 AND NBUF2    *
+*       HOLD 6-BIT NIBLS *
+*       (00ABCDEF)       *
+*                        *
+*     USES TEMP 'IDX'.   *
+*                        *
+*   ---- CAUTION -----   *
+*                        *
+*        OBSERVE         *
+*    'NO PAGE CROSS'     *
+*      WARNINGS ON       *
+*    SOME BRANCHES!!     *
+*                        *
+*   ---- ASSUMES ----    *
+*                        *
+*   1 USEC CYCLE TIME    *
+*                        *
+**************************
+READ16          LDY          #$20                      'MUST FIND' COUNT.
+RSYNC           DEY          IF                        CAN'T FIND MARKS
+                BEQ          RDERR                     ;THEN EXIT WITH CARRY SET.
+READ1           LDA          Q6L,X                     READ NIBL.
+                BPL          READ1                     *** NO PAGE CROSS! ***
+RSYNC1          EOR          #$D5                      DATA MARK 1?
+                BNE          RSYNC                     LOOP IF NOT.
+                NOP          DELAY                     BETWEEN NIBLS.
+READ2           LDA          Q6L,X
+                BPL          READ2                     *** NO PAGE CROSS! ***
+                CMP          #$AA                      DATA MARK 2?
+                BNE          RSYNC1                    (IF NOT, IS IT DM1?)
+                LDY          #$56                      INIT NBUF2 INDEX.
+*              (ADDED NIBL DELAY)
+READ3           LDA          Q6L,X
+                BPL          READ3                     *** NO PAGE CROSS! ***
+                CMP          #$AD                      DATA MARK 3?
+                BNE          RSYNC1                    (IF NOT, IS IT DM1?)
+*         (CARRY SET IF DM3!)
+                LDA          #$00                      INIT CHECKSUM.
+RDATA1          DEY
+                STY          IDX
+READ4           LDY          Q6L,X
+                BPL          READ4                     *** NO PAGE CROSS! ***
+                EOR          DNIBL,Y                   XOR 6-BIT NIBL.
+                LDY          IDX
+                STA          NBUF2,Y                   STORE IN NBUF2 PAGE.
+                BNE          RDATA1                    TAKEN IF Y-REG NONZERO.
+RDATA2          STY          IDX
+READ5           LDY          Q6L,X
+                BPL          READ5                     *** NO PAGE CROSS! ***
+                EOR          DNIBL,Y                   XOR 6-BIT NIBL.
+                LDY          IDX
+                STA          NBUF1,Y                   STORE IN NBUF1 PAGE.
+                INY
+                BNE          RDATA2
+READ6           LDY          Q6L,X                     READ 7-BIT CSUM NIBL.
+                BPL          READ6                     *** NO PAGE CROSS! ***
+                CMP          DNIBL,Y                   IF LAST NBUF1 NIBL NOT
+                BNE          RDERR                     EQUAL CHKSUM NIBL THEN ERR.
+READ7           LDA          Q6L,X
+                BPL          READ7                     *** NO PAGE CROSS! ***
+                CMP          #$DE                      FIRST BIT SLIP MARK?
+                BNE          RDERR                     (ERR IF NOT)
+                NOP          DELAY                     BETWEEN NIBLS.
+READ8           LDA          Q6L,X
+                BPL          READ8                     *** NO PAGE CROSS! ***
+                CMP          #$AA                      SECOND BIT SLIP MARK?
+                BEQ          RDEXIT                    (DONE IF IT IS)
+RDERR           SEC          INDICATE                  'ERROR EXIT'.
+                RTS          RETURN                    FROM READ16 OR RDADR16.
+
+; ####################################################################################################
+; #   END OF FILE:  POSTNRD
+; #   LINES      :  165
+; #   CHARACTERS :  6677
+; #   Formatter  :  Assembly Language Reformatter 1.0.2 (07 January 1998)
+; ####################################################################################################

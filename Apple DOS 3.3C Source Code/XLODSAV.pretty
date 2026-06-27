@@ -1,0 +1,281 @@
+; ####################################################################################################
+; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
+; #   FILE NAME:  XLODSAV
+; ####################################################################################################
+
+                PAGE
+;
+; EBSV - EXECUTE BINARY SAVE
+;
+EBSV            EQU          *
+                LDA          #ADR+L                    ; IF A&L
+                AND          INOPTS                    ; NOT GIVEN
+                CMP          #ADR+L
+                BEQ          EBSV1
+                JMP          CNF                       ; THEN ERROR
+EBSV1           EQU          *
+                LDA          #4                        ; SET BINARY FILE
+                JSR          SV1                       ; GO OPEN & TEST
+                LDA          CA+1                      ; OUTPUT ADR OF BLOCK
+                LDY          CA
+                JSR          SV2
+                LDA          CL+1                      ; GO OPEN AND TEST
+                LDY          CL
+                JSR          SV2                       ; OUTPUT LENGTH
+                LDA          CA+1                      ; GET ADR GIVEN
+                LDY          CA
+                JMP          SV3                       ; OUTPUT BLOCK
+;
+; EBLD - EXECUTE BINARY LOAD
+;
+EBLD            EQU          *
+                JSR          EOPN1                     ;(CHANGED 11/1/78 FOR TYPE MISMATCH)
+EBLD2           EQU          *
+                LDA          #$7F
+                AND          CCBFUC
+                CMP          #4
+                BEQ          EBLD3
+                JMP          ETYP                      ;TYPE MISMATCH ERROR MESSAGE
+EBLD3           EQU          *
+                LDA          #4                        ; SET BINARY FILE
+                JSR          SV1                       ; GO OPEN & TEST
+                JSR          LD2                       ; GO GET ADR
+                TAX
+                LDA          INOPTS
+                AND          #ADR                      ; IF ADR NOT GIVEN
+                BNE          EBLD1
+                STX          CA                        ; THEN USE ADR FROM FILE
+                STY          CA+1
+EBLD1           EQU          *
+                JSR          LD2                       ; GET LENGTH
+                LDX          CA                        ; GET GIVEN ADR
+                LDY          CA+1
+                JMP          LD3                       ; GO GET BLOCK
+;
+; EBRUN - EXECUTE BINARY RUN
+;
+EBRUN           JSR          EBLD                      ;DO A BINARY LOAD
+                JSR          MVCSW                     ; GO RESTORE CHAR I/O SW
+                JMP          (CA)                      ; GO EXEC THE STUFF
+                PAGE
+;
+; ESAVE - EXECUTE SAVE REQUEST
+;
+ESAVE           EQU          *
+                LDA          ASIBSW                    ; IF IB THEN
+                BEQ          EIBSV                     ; GO TO IB SAVE
+                LDA          ASRNX                     ;CANNOT DO AS SAVE WHEN RUN-ONLY PROG.
+                BPL          EASAV                     ;BRANCH IF OK TO SAVE, OTHERWISE
+                JMP          MFERR                     ;PRINT "PROGRAM TOO LARGE", THAT OUGHT TO GET 'EM.
+EASAV           LDA          #2                        ; GET APPLESOFT PGM
+                JSR          SV1                       ; GO OPEN AND TEST
+;
+                SEC                                    ; BLOCK LENGTH
+                LDA          ASEOP                     ; =EOP-SOP
+                SBC          ASSOP
+                TAY
+                LDA          ASEOP+1
+                SBC          ASSOP+1
+                JSR          SV2                       ; GO OUTPUT LENGTH
+;
+                LDA          ASSOP+1                   ; BLOCK ADR
+                LDY          ASSOP                     ; =SOP
+                JMP          SV3                       ; GO OUTPUT BLOCK
+;
+EIBSV           EQU          *
+                LDA          #1                        ; SET IB PGM
+                JSR          SV1                       ; GO OPEN AND TEST
+;
+                SEC                                    ; BLOCK LENGTH
+                LDA          IBHMEM                    ; =HIMEM-SOP
+                SBC          IBSOP
+                TAY
+                LDA          IBHMEM+1
+                SBC          IBSOP+1
+                JSR          SV2                       ; GO OUTPUT LENGTH
+;
+                LDA          IBSOP+1                   ; BLOCK ADR
+                LDY          IBSOP                     ; =SOP
+                JMP          SV3                       ; GO OUTPUT BLOCK
+;
+SV1             EQU          *
+SV1A            EQU          *
+                STA          CCBFUC                    ; SET PGM TYPE
+                PHA                                    ; SAVE PGM TYPE
+                JSR          EOPN1                     ; GO OPEN FILE  (CHGED 11/1/78)
+                PLA                                    ; GET SAVE TYPE
+                JMP          TSTFUC                    ; GO CHECK
+;
+SV2             EQU          *
+                STY          CCBBLN                    ; SET BLOCK LENGTH
+                STY          CCBDAT                    ; AND DATA BYTE
+                STA          CCBBLN+1
+                LDA          #CRQWR                    ; INDICATE WRITE
+                STA          CCBREQ
+                LDA          #CRMNBT                   ; NEXT BYTE
+                STA          CCBRQM
+                JSR          DOSGO                     ; GO WRITE
+                LDA          CCBBLN+1                  ; OTHER BYTE TOO
+                STA          CCBDAT
+                JMP          DOSGO
+;
+SV3             STY          CCBBBA                    ; SET BLOCK ADR
+                STA          CCBBBA+1
+                LDA          #CRMNBL                   ; INDICATE BLOCK I/O
+                JMP          VPATCH                    ;VERIFY AFTER SAVE
+GODOS           JSR          DOSGO                     ; GO DO IT
+                JMP          ECLOSE                    ; CLOSE FILE
+                PAGE
+NBPER           JMP          ERNU1
+;
+; ELOAD - EXECUTE LOAD REQUEST
+;
+ELOAD           EQU          *
+                JSR          CLALL                     ; GO CLOSE ALL
+ELOAD0          JSR          EOPN1                     ; OPEN FILE (CHGED 11/1/78)
+;
+ELD1            EQU          *
+                LDA          #$23                      ; STRIP UNRELATED STUFF
+                AND          CCBFUC                    ; OUT OF FUC
+                BEQ          NBPER                     ; BR IF ERROR
+; ISOLOLATE IB & AS
+ELD2            EQU          *
+                STA          CCBFUC                    ; SAVE IB/AS ONLY
+                LDA          ASIBSW                    ; IF IB THEN
+                BEQ          EIBL                      ; GO TO IB LOAD
+                LDA          #2
+                JSR          LD1                       ; GO OPEN AND TEST
+;
+                JSR          LD2                       ; GO GET BLOCK LENGTH
+;
+                CLC
+                ADC          ASSOP                     ; ADD BLOCK LENGTH TO SOP
+                TAX
+                TYA
+                ADC          ASSOP+1
+;
+                CMP          ASHM1+1                   ; IF BL+SOP >= HMEM
+                BCS          MFULL                     ; THEN WON'T FIT
+;
+EASL1           EQU          *
+                STA          ASEOP+1                   ; SET NEW EOP ADR
+                STA          ASEOP2+1
+                STX          ASEOP
+                STX          ASEOP2
+                LDX          ASSOP                     ; GET ADR WHERE TO LOAD
+                LDY          ASSOP+1
+                JSR          LD3                       ; GO LOAD
+                JSR          MVCSW                     ;RESTORE I/O
+                JMP          (ASEQ)                    ;RELOC FOR THIS VERSION OF APPLSOFT
+;
+EIBL            EQU          *
+                LDA          #1                        ; SET IB PGM
+                JSR          LD1                       ; GO OPEN AND TEST
+;
+                JSR          LD2                       ; GO GET BLOCK LENGTH
+;
+                SEC                                    ; HMEM - BLOCK LENGTH
+                LDA          IBHMEM                    ; IS NEW SOP
+                SBC          SVBL
+                TAX
+                LDA          IBHMEM+1
+                SBC          SVBL+1
+                BCC          MFULL
+                TAY
+;
+                CPY          IBLMEM+1                  ; IF NEW SOP <= LMEM
+                BCC          MFULL
+                BEQ          MFULL
+                STY          IBSOP+1                   ; SET NEW SOP
+                STX          IBSOP
+LD3             EQU          *
+                STX          CCBBBA                    ; SET BLOCK ADR
+                STY          CCBBBA+1
+                JMP          GODOS                     ; GET BLOCK & CLOSE
+;
+LD2             EQU          *
+                LDA          SVBLA                     ; MOVE ADR OF WHERE
+                STA          CCBBBA                    ; TO PUT DATA TO
+                LDA          SVBLA+1                   ; CCBN
+                STA          CCBBBA+1
+                LDA          #0
+                STA          CCBBLN+1                  ; READ INTO
+                LDA          #2
+                STA          CCBBLN
+                LDA          #CRQRD                    ; READ
+                STA          CCBREQ
+                LDA          #CRMNBL                   ; BLOCK
+                STA          CCBRQM
+                JSR          DOSGO
+                LDA          SVBL+1
+                STA          CCBBLN+1
+                TAY
+                LDA          SVBL
+                STA          CCBBLN
+                RTS
+;
+MFULL           EQU          *
+                JSR          ECLOSE                    ; GO CLOSE FILE
+                JMP          MFERR                     ; AND GIVE ERR MSG
+LD1             EQU          *
+                CMP          CCBFUC                    ; TEST TYPE
+                BEQ          LD1C                      ; BR IF MATCH
+                LDX          CMDNO
+                STX          SVCMD
+                LSR          A
+                BEQ          LD1A                      ; BR IF PGM IS AS
+                JMP          EINT                      ; GO FOR INTG BASIC
+;
+LD1A            EQU          *
+                LDX          #29                       ; SAVE FILE NAME
+LD1B            LDA          FNAME1,X                  ; INCASE IS RAM APPLESOFT
+                STA          FNAME2,X
+                DEX
+                BPL          LD1B
+                JMP          EAS                       ; GO FOR AS
+;
+LD1C            RTS
+                PAGE
+;
+; ERUN - EXECUTE RUN REQUEST
+;
+ERUN            EQU          *
+                LDA          ASIBSW                    ;IF APPLESOFT THEN RELOC FLAG SET
+                BEQ          ERUN0
+                STA          RSTATE                    ;INDICATE APSFT RUN
+ERUN0           JSR          ELOAD                     ; LOAD PGM
+ERUN1           JSR          PRCRIF                    ;REENTRY POINT FOR ASFT RELOC
+                JSR          MVCSW                     ; GO RESTORE CHAR I/O SW
+                JMP          (RUN)
+;
+; IBRUN - INT BASIC RUN
+;
+IBRUN           EQU          *
+                LDA          IBLMEM                    ; RESET START OF VARS
+                STA          IBSOV
+                LDA          IBLMEM+1
+                STA          IBSOV+1
+                JMP          (CHAIN)
+;
+; EHCAIN - EXECUTE CHAIN REQUEST
+;
+ECHAIN          EQU          *
+                JSR          ELOAD0                    ; LOAD PGM WITHOUT CLOSING READ FILES
+                JSR          PRCRIF
+                JSR          MVCSW                     ; GO RESTORE CHAR I/O SW
+                JMP          (CHAIN)
+ASRUN1          JSR          $D665                     ; ROM
+                STA          PROMPT                    ;INSURES APPLESOFT RUN DETECT (A=0)
+                STA          ASONERR                   ;RESET APPLESOFT ONERR FLAG
+                JMP          $D7D2
+ASRUN2          JSR          $E65                      ; RAM
+                STA          PROMPT                    ;INSURES APPLESOFT RUN DETECT (A=0)
+                STA          ASONERR                   ;RESET APPLESOFT ONERR FLAG
+                JMP          $FD4
+
+; ####################################################################################################
+; #   END OF FILE:  XLODSAV
+; #   LINES      :  269
+; #   CHARACTERS :  12028
+; #   Formatter  :  Assembly Language Reformatter 1.0.2 (07 January 1998)
+; ####################################################################################################

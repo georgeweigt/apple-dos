@@ -1,0 +1,28 @@
+File ............. "BLOCKIO"
+Fork ............. DATA
+Size (bytes) ..... 205 (0KB) / $000000CD
+Created .......... Wednesday, April 12, 2006 -- 9:21:54 AM
+Modified ......... Wednesday, April 12, 2006 -- 9:21:54 AM
+
+D/000000: A94C8DF8 03A9118D F903A903 8DFA03D0 [.L..............]
+D/000010: 2BADE9B7 8DB9038D C703ADEA B78DBA03 [+...............]
+D/000020: 8DC803A2 00BD0002 C999F003 E8D0F6BD [................]
+D/000030: 0102A002 C9D7F008 C9D2F003 4C65FF88 [............Le..]
+D/000040: 8CC403A5 3C8DC003 A53D8DC1 03A53E85 [....<....=....>.]
+D/000050: 0EA53F85 0FA5420A 290FA888 8CA70346 [..?...B.)......F]
+D/000060: 43664266 426642A5 42293F8D BC03ACA7 [CfBfBfB.B)?.....]
+D/000070: 03C8C010 D005EEBC 03A000B9 A8038DBD [................]
+D/000080: 038CA703 A903A0B8 20D90390 06202DFF [..............-.]
+D/000090: 4C69FFE6 3DEEC103 ADC003C5 0EADC103 [Li..=...........]
+D/0000A0: E50F90CA 4C69FFA0 000E0D0C 0B0A0908 [....Li..........]
+D/0000B0: 07060504 0302010F 01A0A000 E0A0C903 [................]
+D/0000C0: E8D2A0A0 F7A0A99E BD0001EF D8       [.............   ]
+
+File ............. "BLOCKIO"
+Fork ............. RESOURCE
+Size (bytes) ..... 0 (0KB) / $00000000
+
+
+Brought to you by: dtcdumpfile 1.0.0 (Apple Macintosh File Hex Dumper) Sunday, July 6, 1997
+
+FINIS

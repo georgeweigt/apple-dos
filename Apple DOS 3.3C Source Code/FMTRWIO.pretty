@@ -1,0 +1,245 @@
+; ####################################################################################################
+; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
+; #   FILE NAME:  FMTRWIO
+; ####################################################################################################
+
+                PAGE
+;
+*   FFMT - EXECUTE FORMAT REQUEST
+;
+FFMT            EQU          *
+                JSR          DCBSUP                    ; SET UP DCB
+                LDA          #IBFMT
+                JSR          DCBIO2
+                LDA          DCBVOL                    ; SET VOL NO
+                EOR          #$FF
+                STA          VVOLNO
+                LDA          #17
+                STA          VALCA1                    ; ALOCATE BYTE 1
+                LDA          #1
+                STA          VALCA2                    ; ADD BYTE 2
+;
+                LDX          #VSECAL-VTOC
+                LDA          #0
+NT1             STA          VTOC,X                    ; CLEAR SECTOR AREA
+                INX
+                BNE          NT1
+;
+                LDX          #3*4                      ; START AT TRACK 3
+NT2             CPX          #35*4                     ; END AT TRACK 35
+                BEQ          NT4
+                LDY          #3                        ; 4 BYTES OF INFO
+NT3             LDA          ALC10S,Y                  ; 10 SECTORS ALLOCATE
+                STA          VSECAL,X
+                INX
+                DEY
+                BPL          NT3
+                CPX          #17*4                     ; AT TRACK 17
+                BNE          NT2                       ; BR IF NOT
+                LDX          #18*4                     ; SKIP TO 18
+                BNE          NT2
+;
+NT4             JSR          WRVTOC                    ; WRITE NEW VTOC
+;
+                LDX          #0
+                TXA
+NT5             STA          VOLDIR,X                  ; CLEAR VOLDIR
+                INX
+                BNE          NT5
+;
+                JSR          MVVDBA                    ; MOVE BUF PTRS
+;
+                LDA          #17                       ; TRACK 17
+                LDY          VNOSEC
+                DEY
+                DEY
+                STA          IBTRK                     ; INTO IOB
+NT6             STA          VDLTRK                    ; INTO LINK
+NT7             STY          VDLSEC
+                INY
+                STY          IBSECT
+                LDA          #IBCWTS
+                JSR          DCBIO2
+                LDY          VDLSEC
+                DEY                                    ; DECREMENT SECTOR
+                BMI          NT8                       ; BR LAST WRITTEN
+                BNE          NT7                       ; BR NOT LAST
+                TYA                                    ; LAST, SET LINK TRK=0
+                BEQ          NT6
+;
+NT8             EQU          *
+                JSR          DLDSUP                    ; GO SET UP FOR DOSLDR
+                JSR          WBOOT                     ; GO WRITE THE BOOT
+                JMP          GOODIO                    ; DONE
+                PAGE
+;
+*   MVFCBX - MOVE FCB ADRS TO ZPGFCB
+;
+MVFCBP          LDX          #0                        ; MOVE FCB ADR
+                BEQ          MVF1
+MVFCBD          LDX          #2                        ; MOVE FCB DIR BUFF
+                BNE          MVF1
+MVFCBS          LDX          #4                        ; MOVE FCB SECTOR BUFF
+;
+MVF1            EQU          *
+                LDA          CFCBAD,X                  ; DO THE MOVE
+                STA          ZPGFCB
+                LDA          CFCBAD+1,X
+                STA          ZPGFCB+1
+                RTS
+;
+                PAGE
+;
+*   WRSECT - WRITE CURRENT SECTOR IF REQD
+;
+WRSECT          EQU          *
+                BIT          DCBWRF                    ; GET WRITE REQD FLAG
+                BVS          WRSGO                     ; BR IF WRITE SECTOR REQD
+                RTS                                    ; RTS
+;
+WRSGO           EQU          *
+                JSR          MVSBA                     ; GO MOVE SECT BUFF ADR
+;
+                LDA          #IBCWTS                   ; GET COMMAND
+                JSR          DCBIO                     ; GO FILL IN IOB AND DO IO
+;
+                LDA          #$BF                      ; SET WRITE SECTOR REQD BIT OFF
+                AND          DCBWRF
+                STA          DCBWRF
+                RTS                                    ; DONE
+                PAGE
+;
+*   WRFDIR - WRITE FILE DIRECTRY IF REQD
+;
+WRFDIR          EQU          *
+                LDA          DCBWRF                    ; GET WRITE REQD FLAG
+                BMI          WRFDGO                    ; BR IF WRITE DIR REQD
+                RTS                                    ; DONE IF NOT
+;
+WRFDGO          EQU          *
+                JSR          MVFDBA
+;
+                LDA          #IBCWTS                   ; GET WRITE CMD
+                JSR          DCBIO                     ; GO FILL IN IOB AND DO I/O
+;
+                LDA          #$7F                      ; TURN WRITE DIR REQD BIT OFF
+                AND          DCBWRF
+                STA          DCBWRF
+                RTS                                    ; DONE
+;
+*   MVFDBA - MOVE FILE DIRECTORY BUFF ASDR TO IOD
+;
+MVFDBA          EQU          *
+                LDA          CFCBDR                    ; MOVE ADR
+                STA          IBBUFP
+                LDA          CFCBDR+1
+                STA          IBBUFP+1
+                LDX          DCBCDT                    ; GET TRACK
+                LDY          DCBCDS                    ; GET SECTOR
+                RTS
+                PAGE
+;
+*   RDFDIR - READ FILE DIRECTORY
+;
+RDFDIR          EQU          *
+                PHP                                    ; SAVE STATUS
+                JSR          WRFDIR                    ; GO WRITE CURRENT DIR IF REQD
+                JSR          MVFDBA                    ; GO MOVE DBUFF ADR TO IOB
+                JSR          MVFCBD                    ; MOVE DBUFF ADR TO ZPG
+                PLP                                    ; GET SAVED STATUS
+                BCS          RFDNXT                    ; BR IF RD NEXT
+;
+                LDX          DCBFDT                    ; TRACK
+                LDY          DCBFDS                    ; SECTOR
+                JMP          RFDIO1                    ; GO READ
+;
+RFDNXT          EQU          *
+                LDY          #FDLTRK                   ; GET LINK TRACK
+                LDA          (ZPGFCB),Y
+                BEQ          RFDNL                     ; NR NO LINK
+                TAX                                    ; PUT TRACK INTO X
+                INY
+                LDA          (ZPGFCB),Y                ; SET LINK SECTOR
+                TAY                                    ; PUT SECTOR INTO Y
+                JMP          RFDIO1                    ; GO DO I/O
+;
+RFDNL           EQU          *
+                LDA          CCBREQ                    ; THIS A WRITE
+                CMP          #CRQWR
+                BEQ          RFDNL1                    ; BR IF WRITE
+                SEC                                    ; SET EOF
+                RTS                                    ; RETURN
+;
+RFDNL1          EQU          *
+                JSR          GETSEC                    ; GET A SECTOR
+                LDY          #FDLSEC
+                STA          (ZPGFCB),Y                ; PUT IN LINK
+                PHA                                    ; SAVE SECTOR
+                DEY
+                LDA          DCBATK                    ; GET TRACK
+                STA          (ZPGFCB),Y                ; PUT IN LINK
+                PHA                                    ; SAVE TRACK
+                JSR          WRFDGO                    ; GO WRITE OLD DIR DEC
+;
+                JSR          CLRSEC                    ; CLEAN OUT DIR
+                LDY          #FDFRS                    ; SET NEW DIR SEC 1ST REL
+                LDA          DCBDNF                    ; FILE SECTOR
+                STA          (ZPGFCB),Y
+                INY
+                LDA          DCBDNF+1
+                STA          (ZPGFCB),Y
+;
+                PLA                                    ; GET SAVED TRACK
+                TAX                                    ; INTO X
+                PLA                                    ; GET SAVED SECTOR
+                TAY                                    ; INTO Y
+                LDA          #IBCWTS                   ; SET WRITE CMD
+                BNE          RFDIO2                    ; GO DO I/O
+;
+RFDIO1          LDA          #IBCRTS                   ; SET READ CMD
+RFDIO2          STX          DCBCDT                    ; SET CURR TRACK
+                STY          DCBCDS                    ; SET CURR SECTOR
+                JSR          DCBIO                     ; GO I/O
+;
+RDFDC           LDY          #FDFRS                    ; GET POINTER TO FIRST REL SECTOR
+                LDA          (ZPGFCB),Y                ; GET FRS
+                STA          DCBDFS                    ; SET INTO DCB
+                CLC
+                ADC          DCBDMS                    ; ADD MAX SECTORS
+                STA          DCBDNF                    ; PUT INTO DCB
+;
+                INY                                    ; DO SAME FOR HI BYTE
+                LDA          (ZPGFCB),Y
+                STA          DCBDFS+1
+                ADC          DCBDMS+1
+                STA          DCBDNF+1
+;
+                CLC
+                RTS                                    ; DONE
+                PAGE
+;
+;RDSECT - READ A SECTOR
+;
+RDSECT          EQU          *
+                JSR          MVSBA                     ; GO MOVE SECTOR BUFFER ADR
+;
+                LDA          #IBCRTS
+                JMP          DCBIO                     ; GO DO I/O
+;
+;MVSBA - MOVE SECTOR BUFFER ADR FOR I/O
+;
+MVSBA           EQU          *
+                LDY          CFCBSB                    ; GET SECTOR BUFF ADR
+                LDA          CFCBSB+1
+MSB1            STY          IBBUFP                    ; SET IOB SECTOR
+                STA          IBBUFP+1                  ; BUFF PTR
+                LDX          DCBTRK                    ; GET TRACK
+                LDY          DCBSEC                    ; GET SECTOR
+                RTS                                    ; RTN
+
+; ####################################################################################################
+; #   END OF FILE:  FMTRWIO
+; #   LINES      :  233
+; #   CHARACTERS :  9921
+; #   Formatter  :  Assembly Language Reformatter 1.0.2 (07 January 1998)
+; ####################################################################################################

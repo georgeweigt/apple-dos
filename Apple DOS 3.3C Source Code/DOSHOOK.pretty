@@ -1,0 +1,227 @@
+; ####################################################################################################
+; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
+; #   FILE NAME:  DOSHOOK
+; ####################################################################################################
+
+                PAGE
+;
+;CHRIN - CHAR RCVD VIA IN SWITCH
+;
+CHRIN           EQU          *
+                JSR          SVREGS
+                LDA          ISTATE                    ; IF NOT DISKIN
+                BEQ          CHIN1                     ; THEN BRANCH, ELSE
+                PHA                                    ;SAVE ISTATE
+                LDA          SVA
+                STA          ($28),Y                   ;REPLACE CURSOR
+                PLA                                    ;GET ISTATE AGAIN
+                BMI          CHIN0                     ;BRANCH IF NOT 'READ' FROM DISK
+                JMP          ICFD                      ; AND GET CHAR FROM DISK
+CHIN0           JSR          INITC
+                LDY          $24                       ;GET CURSOR HORIZ
+                LDA          #$60                      ;RESTORE A FLASHING CURSOR
+                STA          ($28),Y                   ; TO PROMPT USER
+CHIN1           EQU          *
+                LDA          ESTATE
+                BEQ          CHIN2
+                JSR          NXTEXC                    ;RETURNS TO HERE ONLY WHEN 'EXEC' IS EXHAUSTED
+CHIN2           EQU          *
+                LDA          #3                        ; SET OUT CHAR
+                STA          OSTATE                    ; STATE TO INPUT ECHO
+                JSR          LDREGS
+                JSR          GETIN
+                STA          SVA                       ;SAVE CHAR & INDEX
+                STX          SVX
+                JMP          ORTN
+;
+GETIN           JMP          (INSW)
+;
+;CHROUT - CHAR RCVD VIA OUTPUT SWITCH
+;
+CHROUT          EQU          *
+                JSR          SVREGS                    ; SAVE REGS
+;
+                LDA          OSTATE                    ; GET OUT SPARE
+                ASL          A
+                TAX
+                LDA          OUTSVT+1,X                ; GET ROUTINE ADR
+                PHA
+                LDA          OUTSVT,X
+                PHA
+                LDA          SVA
+                RTS                                    ; GO TO ROUTINE
+;
+;SVREGS - SAVE REGS WHILE PROCESSING CHARS
+;
+SVREGS          EQU          *
+                STA          SVA                       ; SAVE ACU
+SVRGSA          EQU          *
+                STX          SVX                       ; SAVE X
+                STY          SVY                       ; SAVE Y
+                TSX                                    ;SAVE STACK POINTER
+                INX
+                INX                                    ;ADJUST IT TO ORIGINAL
+                STX          SVSTK
+                LDX          #3                        ; SET FOR FOUR BYTE MOVE
+SVRB            LDA          SVOUTS,X                  ; MOVE SAVED OUT AND IN SW
+                STA          OUTSW,X                   ; TO APPLE OUT/IN SW
+                DEX
+                BPL          SVRB
+                RTS                                    ; DONE
+                PAGE
+;
+;COS0 - 1ST CHAR OF PRINTED OUTPUT LINE
+;CHECK FOR CNTL-D
+;
+COS0            EQU          *
+                LDX          RSTATE                    ;FIRST CHECK FOR 'AFTER APSFT RELOC'
+                BEQ          COS00                     ;BRANCH IF NOT
+                JMP          COS7
+COS00           LDX          ISTATE                    ; IS IN STATE NOT ZERO
+                BEQ          COS01
+                CMP          #'?'+$80                  ; THEN IS THIS ?
+                BEQ          COS6                      ; THEN PRINT ONLY IF MONITOR
+                CMP          PROMPT
+                BEQ          COS2A
+COS01           EQU          *
+                LDX          #2
+                STX          OSTATE
+                CMP          CCHAR                     ; IF NOT CNTL-D
+                BNE          COS2                      ; THEN GO TO STATE 2
+                DEX
+                STX          OSTATE                    ; ELSE STATE = 1
+                DEX
+                STX          LBUFD                     ; AND LBUFD=0
+;
+;COS1 - ACCUMULATE CMD FROM PRINTED OUTPUT
+;
+COS1            EQU          *
+                LDX          LBUFD                     ; GET LINE BUFF DISPL
+COS1A           STA          LBUFF,X                   ; PUT CHAR IN BUFF
+                INX                                    ; INCR PTR
+                STX          LBUFD                     ; SAVE PTR
+                CMP          #$8D                      ; WAS THIS A CR
+                BNE          CMDRTN                    ; IF NOT THEN PR CHAR
+;
+                JMP          SCNCMD                    ; GO SCAN COMMAND
+;
+;COS2 - PRINTED OUTPUT, NOT FIRST CHAR
+;
+COS2            EQU          *
+                CMP          #$8D                      ; IS IT A CR
+                BNE          PRRTN                     ; BR IF NOT
+COS2A           LDX          #0                        ; SET FOR POSSIBLE C-D NEXT
+                STX          OSTATE                    ; NEXT STATE
+                JMP          PRRTN                     ; GO PRINT CHAR
+                PAGE
+;
+;COS3 - KEY IN ECHO PRINT
+;
+COS3            EQU          *
+                LDX          #0
+                STX          OSTATE                    ; RESET OUT STATE
+                CMP          #$8D                      ; IS IT CR
+                BEQ          COS3A                     ; IF CR THEN CMD CHECK
+COS3B           LDA          ESTATE                    ; ELSE: IF NOT EXECUTE
+                BEQ          PRRTN                     ; THEN PRINT CHAR
+                BNE          DRTNI                     ; ELSE: PRINT IF MON INPUT
+COS3A           PHA                                    ;SAVE CARRAGE RETURN
+                SEC                                    ;ANTICIPATE EXEC FILE INPUT.
+                LDA          ESTATE                    ;CHECK EXEC FLAG
+                BNE          COS3C                     ;BR IF WAS INPUT FROM EXEC.
+                JSR          TSTRUN                    ;GO TEST FOR RUN MODE.
+COS3C           PLA
+                BCC          COS3B                     ;IGNORE INPUT IF RUNNING.
+                LDX          SVX                       ; GET LINE INDEX
+                JMP          COS1A
+;
+;COS4 - DISK OUTPUT MODE
+;
+COS4            EQU          *
+                CMP          #$8D                      ; IS IT CR
+                BNE          COS4A                     ; BR IF NOT CR
+                LDA          #5                        ; SET STATE FOR CNTL-D
+                STA          OSTATE                    ; EXAMINE
+COS4A           JSR          OCTD                      ; GO OUTPUT CJHAR TO DISK
+                JMP          DRTNO                     ; GO TO DATA RETURN (OUT)
+;
+;COS5 - DISK OUTPUT MODE - 1ST CHAR OF A LINE
+;
+COS5            EQU          *
+                CMP          CCHAR                     ; IS IT CNTL D
+                BEQ          COS0                      ; BR IF CNTL- D
+                CMP          #$8A                      ; LINE FEED?
+                BEQ          COS4A
+                LDX          #4
+                STX          OSTATE                    ; SET NEW OUT STATE
+                BNE          COS4                      ; BR IF NOT CNTL D
+;
+;COS6 - DISK INPUT ECHO
+;
+COS6            LDA          #0
+                STA          OSTATE                    ; RESET OUT STATE = 0
+                BEQ          DRTNI                     ; GO TO DATA IN RETURN
+;
+; COS7 - SPECIAL FOR RECOVER FROM AS ROM/RAM RELOC.
+;
+COS7            LDA          #0                        ;RESET RELOC STATE
+                STA          RSTATE
+                JSR          MVCSW                     ;FOR COMPATABILITY ON REENTRY
+                JMP          ERUN1
+                PAGE
+;
+;PRRTN - PRINT CHAR RETURN
+;
+;
+; CMDRTN - PRINT CHAR IF MONITOR CMBS MODE
+; DRTNO - PRINT CHAR IF MONITOR DATA OUT
+; DRTNI - PRINT CHAR IF MONITOR DATA IN
+;
+CERTN           EQU          *
+                LDA          LBUFF                     ; CHECK FOR PRINTED COMMAND
+                CMP          CCHAR
+                BEQ          CMDRTN                    ; IF PC THEN NO RESET X REG
+                LDA          #$8D                      ; CARRAGE RETURN
+                STA          LBUFF                     ; TO OUT BUFFER
+                LDX          #0                        ; RESET TO SOL
+                STX          SVX
+CMDRTN          LDA          #MC
+                BNE          MODECK
+DRTNO           LDA          #MO
+                BNE          MODECK
+DRTNI           LDA          #MI
+;
+MODECK          EQU          *
+                AND          MONMOD                    ; AND WITH MODE
+                BEQ          ORTN                      ; BR IF NOT PRINT
+PRRTN           JSR          LDREGS
+                JSR          ORTN1
+                STA          SVA                       ;SAVE REGISTERS
+                STY          SVY
+                STX          SVX
+;
+ORTN            EQU          *
+                JSR          MVCSW                     ; GO MOVE CHAR I/O SWITCH
+                LDX          SVSTK                     ;RESTORE ORIGINAL STACK POINTER (YEEECH!)
+                TXS
+LDREGS          EQU          *
+                LDA          SVA                       ; ACU
+                LDY          SVY                       ; Y
+                LDX          SVX                       ; X
+                SEC                                    ;(FOR 'ESC' SCREEN FUNCTIONS)
+                RTS                                    ; BY PASS PRINT
+;
+ORTN1           JMP          (OUTSW)
+;
+; PRCRIF - PRINT CR IF MON CMDS
+;
+PRCRIF          EQU          *
+                LDA          #$8D                      ; ELSE PRINT CR
+                JMP          ORTN1
+
+; ####################################################################################################
+; #   END OF FILE:  DOSHOOK
+; #   LINES      :  215
+; #   CHARACTERS :  9534
+; #   Formatter  :  Assembly Language Reformatter 1.0.2 (07 January 1998)
+; ####################################################################################################

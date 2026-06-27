@@ -1,0 +1,238 @@
+; ####################################################################################################
+; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
+; #   FILE NAME:  DOSINIT
+; ####################################################################################################
+
+HEREL           EQU          >*
+REMDR           EQU          256-HEREL
+                ORG          *+REMDR
+;
+;RELOCATION TABLES
+;
+START           EQU          *
+SAT1            EQU          *
+FTAB            DW           *-45                      ; START OF FTABS
+CINA            DW           CHRIN                     ; CHAR IN ADR
+COUTA           DW           CHROUT                    ; CHAR OUT ADR
+FN1ADR          DW           FNAME1
+FN2ADR          DW           FNAME2
+SVBLA           DW           SVBL
+ASTART          DW           BEGIN                     ; CHANGED TO START BY RELOCATE
+CCBADR          DW           CCB
+;
+OUTSVT          EQU          *                         ; CHAR OUTPUT STATE VECTOR TABLE
+                DW           COS0-1
+                DW           COS1-1
+                DW           COS2-1
+                DW           COS3-1
+                DW           COS4-1
+                DW           COS5-1
+                DW           COS6-1
+;COMMAND EXECUTION TABLE
+CMDETB          EQU          *
+                DW           EINIT-1
+                DW           ELOAD-1
+                DW           ESAVE-1
+                DW           ERUN-1
+                DW           ECHAIN-1
+                DW           EDEL-1
+                DW           ELOCK-1
+                DW           EUNLK-1
+                DW           ECLOSE-1
+                DW           EREAD-1
+                DW           EEXEC-1
+                DW           EWRITE-1
+                DW           EPOS-1
+                DW           EOPEN-1
+                DW           EAPND-1
+                DW           EREN-1
+                DW           ECAT-1
+                DW           EMON-1
+                DW           ENOMON-1
+                DW           EPR-1
+                DW           EIN-1
+                DW           EMAXF-1
+                DW           EAS-1
+                DW           EINT-1
+                DW           EBSV-1
+                DW           EBLD-1
+                DW           EBRUN-1
+                DW           EVAR-1
+EAT1            EQU          *
+                PAGE
+;
+;NON-RELOCATING ADRS
+;
+IBASVT          EQU          *
+CHAIN           DW           IBCHN
+RUN             DW           IBRUN
+BREAK           DW           IBBRK
+GO              DW           IBGO
+CONT            DW           IBCONT                    ; BASIC CONT ENTRY POINT
+ASEQ            DW           0
+IBVT            DW           IBCHN
+                DW           IBRUN
+                DW           IBBRK
+                DW           IBGO
+                DW           IBCONT
+IBVTL           EQU          *-IBVT
+;
+AS1VT           DW           ASRUN1
+                DW           ASRUN1
+                DW           ASBRK1
+                DW           IBGO
+                DW           ASCNTU1
+                DW           ASRSEQ1
+AS1VTL          EQU          *-AS1VT
+;
+AS2VT           DW           ASRUN2
+                DW           ASRUN2
+                DW           ASBRK2
+                DW           DBINIT
+                DW           ASCNTU2
+                DW           ASRSEQ2
+AS2VTL          EQU          *-AS2VT
+                PAGE
+;
+;DOS BASIC INTERPRETER - INITIAL ENTRY
+;
+SC1             EQU          *
+DBINIT          EQU          *
+                LDA          IBSLOT                    ; GET BOOT SLOT
+                LSR          A
+                LSR          A
+                LSR          A
+                LSR          A
+                STA          CS                        ; SET AS CUURENT SLOT
+                LDA          IBDRVN                    ; GET BOOT DRIVE NUMBER
+                STA          CD                        ; SET AS CURRENT DRIVE
+                LDA          AITSTL                    ; GET APPLESOFT/IB TEST
+                EOR          #ITSTV                    ; IF AS THEN
+                BNE          IAS1                      ; GO TO AS INIT
+;;ELSE INIT FOR IB
+                STA          ASIBSW                    ; SET SW FOR IB
+                LDX          #IBVTL                    ; GET IB VT LENGTH
+IIB1            LDA          IBVT-1,X                  ; MOVE IB ADDR
+                STA          IBASVT-1,X
+                DEX
+                BNE          IIB1
+                JMP          INITAA
+;
+IAS1            EQU          *
+                LDA          #$40                      ; INDICATE ROM APPLESOFT
+                STA          ASIBSW
+                LDX          #AS1VTL
+IAS1A           LDA          AS1VT-1,X                 ; MOVE ROM AS ADRS
+                STA          IBASVT-1,X
+                DEX
+                BNE          IAS1A
+;
+INITAA          EQU          *
+                SEC                                    ; INDICATE INIT
+                BCS          INITA
+DBRST           LDA          ASIBSW                    ;GET APPLESOFT/INITGER BASIC FLAG.
+                BNE          INITA1                    ;BRANCH IF NOT INTIGER BASIC
+                LDA          #ITSTV                    ;GET INTIGER TEST VALUE AND GO SET
+                BNE          INITA2                    ; ROM SWITCH TO 'IB'. (BRANCH ALWAYS)
+INITA1          ASL          A                         ;TEST FOR ROM APPLESOFT
+                BPL          INITA3                    ;BRANCH IF RAM VERSION
+                LDA          #ATSTV                    ;GET APPLESOFT TEST VALUE AND GO SET
+INITA2          JSR          SWTST                     ;GO SELECT PROPER ROM BASIC.
+INITA3          CLC                                    ; INDICATE RESET
+;
+INITA           EQU          *
+                PHP                                    ; SAVE INIT/RESET
+                JSR          MVCSW                     ; GO MOVE CHAR SWITCH
+                LDA          #0                        ; CLR MONITOR MODES
+                STA          MONMOD
+;
+                STA          OSTATE                    ; CLEAR OUTSTATE AND EXECUTE STATE
+                PLP                                    ; GET INIT/RESET
+                ROR          A                         ; SHIFT CARRY TO MSB
+                STA          ISTATE                    ; SAVE INSTATE
+                BMI          INITB                     ; BR IF INIT
+                JMP          (CONT)                    ; GO TO CONTINUE ENTRY
+INITB           JMP          (GO)                      ; GO TO GO ENTRY
+                PAGE
+INITC           EQU          *
+                ASL          A                         ; OF ISTATE NOT ON
+                BPL          INITD                     ; THEN NOT RAM AS
+                STA          ASIBSW                    ; SET RAM AS
+                LDX          #AS2VTL
+IAS2A           LDA          AS2VT-1,X                 ; MOVE RAM AS ADRS
+                STA          IBASVT-1,X
+                DEX
+                BNE          IAS2A
+                LDX          #29
+IAS2B           LDA          FNAME2,X
+                STA          FNAME1,X
+                DEX
+                BPL          IAS2B
+;
+INITD           EQU          *
+                LDA          DFNFTS                    ; GO BUILD FILE TABS
+                STA          CNFTBS                    ; AND SET MEM BOUNDS
+                JSR          BLDFTB
+                LDA          ESTATE                    ; GET EXEC STATE
+                BEQ          INITZ                     ; BR IF NOT EXECUTE
+                PHA                                    ; SVE CHAR
+                JSR          MVEFTA                    ; GO MOVE EX FILE TAB ADR TO ZP
+                PLA                                    ; GET SAVED CHAR
+                LDY          #0
+                STA          (ZPGWRK),Y                ;
+INITZ           EQU          *
+                JSR          CLRSTS                    ; SET IN AND OUT STATES TO ZERO
+                LDA          CMDNO                     ; IF NOT BOOT (DUPLICATED FROM LINES 4540, 4550)
+                BNE          INITF                     ; THEN DONE
+                LDX          #IFBL
+INITE           LDA          DBVECT,X                  ; MOVE RESTART VECTORS
+                STA          $3D0,X
+                DEX
+                BPL          INITE
+                LDA          DBVECT+2                  ;SET RESET VECTORS FOR NEW MONITOR.
+                STA          ZRSET+1                   ;NOTE: THESE ARE NOT NORMALLY USED AND
+                EOR          #$A5                      ; ARE ONLY SET ONCE ON BOOT.
+                STA          PWCNST                    ;POWER UP CONSTANT=COMPLIMENT OF HI RESET VECTOR.
+                LDA          DBVECT+1                  ;SET LOW VECTOR ADDRESS.
+                STA          ZRSET                     ;NOW APPLE RESET WILL KEEP DOS IN I/O LOOP.
+                LDA          #6                        ;INDICATE RUN
+                BNE          INITF1                    ;LOAD AND RUN THE 'HELLO' PROGRAM
+;
+INITF           EQU          *
+                LDA          SVCMD
+                BEQ          INITG
+INITF1          STA          CMDNO
+                JMP          CMDGO1
+INITG           EQU          *
+                RTS
+;
+IFB             EQU          *
+DBVECT          JMP          DBRST
+                JMP          DBINIT
+                JMP          USERENT                   ;USER EXTERNAL ENTRY TO FILE MANAGER
+                JMP          DISKIO
+CCBLDR          EQU          *
+                LDA          CCBADR+1
+                LDY          CCBADR
+                RTS
+IOBLDR          EQU          *
+                LDA          AIOB+1
+                LDY          AIOB
+                RTS
+                JMP          MVCSW
+                NOP
+                NOP
+                JMP          MONBRK                    ;SET BREAK VECTOR FOR NEW MONITOR (JMP IS FOR PROP RELOC)
+                JMP          MONRST                    ;AFTER RELOC TO $3F2 THIS BECOMES:  DW DBRST,XOR(A5) ADR HI
+                JMP          IORTS                     ;SET AS '&' FUNC TO KNOWN RTS
+                JMP          MONRST                    ;GOTO MONITOR RESET (CONTROL Y FUNCTION)
+                JMP          MONRST                    ;GOTO MONITOR RESET
+                DW           MONRST                    ;IRQ GOTO MONITOR RESET
+IFBL            EQU          *-IFB-1
+
+; ####################################################################################################
+; #   END OF FILE:  DOSINIT
+; #   LINES      :  226
+; #   CHARACTERS :  10022
+; #   Formatter  :  Assembly Language Reformatter 1.0.2 (07 January 1998)
+; ####################################################################################################

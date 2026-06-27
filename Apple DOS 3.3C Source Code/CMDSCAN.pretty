@@ -1,0 +1,282 @@
+; ####################################################################################################
+; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
+; #   FILE NAME:  CMDSCAN
+; ####################################################################################################
+
+                PAGE
+;
+; SCNCMD - SCAN A COMMAND
+;
+SCNCMD          EQU          *
+                DO           ULC
+                LDX          #0                        ;Init X for lower case check
+                JSR          UPRCASE                   ;Go check
+                ELSE
+                LDY          #$FF                      ;Set CMDNO to -1
+                STY          CMDNO
+                FIN
+                INY                                    ; INCR TABLE INDEX
+                STY          SVCMD
+SC0             EQU          *
+                INC          CMDNO                     ; INCR CMD NO
+                LDX          #0                        ; RESET LINE INDEX TO 0
+                PHP                                    ; SAVE EQ STATUS
+                LDA          LBUFF,X                   ; GET 1ST LINE CHAR
+                CMP          CCHAR                     ; IS IT CONTROL D
+                BNE          SC0A                      ; BR /IF NOT
+                INX                                    ; INCR OVER CNTLD
+SC0A            STX          LBUFD
+;
+SC1X            EQU          *
+                JSR          GNBC                      ; GET NON BLANK INPUT CHAR
+                AND          #$7F                      ; MSB OF CHAR OFF
+                EOR          CMDNTB,Y                  ; EOR WITH INPUT
+                INY                                    ; INCREMENT TABLE INDEX
+                ASL          A                         ; IF MSB OF EOR RESULT ON
+                BEQ          SC1A                      ; IF RESULT NOT NOW ZERO
+                PLA                                    ; THEN INPUT DOES NOT
+                PHP                                    ; EQUAL ENTRY
+SC1A            BCC          SC1X                      ; LOOP FOR END OF ENTRY
+;
+                PLP                                    ; IF INPUT EQUALS END
+                BEQ          SYNTAX                    ; THEN GO SYNTAX
+;
+                LDA          CMDNTB,Y                  ; IF NEXT TABLE CHAR NOT ZERO
+                BNE          SC0                       ; THENSCANTHE NEXT TABLE ENTRY
+CNF             EQU          *                         ; COMMAND NOT FOUND
+                LDA          LBUFF                     ; LINE IS A CNOTROL-D
+                CMP          CCHAR                     ; THEN THIS IS A
+                BEQ          CNF1                      ; POSSIBLE SYNTAX ERROR, ELSE
+                JMP          PRRTN                     ; ITS A BASIC INPUT LINE
+CNF1            EQU          *
+                LDA          LBUFF+1                   ; GET NEXT CHAR
+                CMP          #$8D                      ; IS IT A CR
+                BNE          CSERR                     ; BR IF CR
+                JSR          CLRSTS                    ; CLEAR THE STATES
+                JMP          CMDRTN                    ; CNTL-D ONLY
+;
+CSERR           JMP          ESYNTX
+                PAGE
+;
+; SYNTAX - FIGURE OUT WHAT WE GOT HERE
+;
+SYNTAX          EQU          *
+                ASL          CMDNO                     ; CMDNO=CMDNO*2
+                LDY          CMDNO
+                JSR          TSTRUN                    ;TEST FOR COMMANDS THAT MAY
+                BCC          SYN1                      ; NOT BE EXECUTED DIRECTLY
+                LDA          #RNONLY                   ;GET RUN ONLY FLAG
+                AND          CMDSTB,Y                  ;IF FLAG=0 THEN
+                BEQ          SYN1                      ; OK TO EXECUTE
+                LDA          #$F                       ;OTHERWISE, GIVE "NOT DIRECT"
+                JMP          ERROR                     ; MESSAGE.
+SYN1            CPY          #6                        ;TEST FOR 'RUN' COMMAND
+                BNE          SYN1A
+                STY          PROMPT                    ;CHANGE PROMPT TO INSURE APPLESOFT RUN DETECT.
+SYN1A           LDA          #FN1
+                AND          CMDSTB,Y                  ; IS FN1 REQD
+                BEQ          SN10                      ; BR IF NOT
+                JSR          CLRFNS
+                PHP                                    ; SAVE EQ STATUS
+;
+SN2             EQU          *
+                JSR          GNBC                      ; GET NON BLANK CHAR
+                BEQ          SN6                       ; BR IF CR OR COMMA
+                ASL          A                         ; TEST FOR ALPHA
+                BCC          SN2A                      ; BR IF ALPHA
+                BMI          SN2A                      ; BR IF APLHA
+                JMP          CNF                       ; LURCH IF NOT ALPHA
+SN2A            ROR          A                         ; RESTORE BITS
+                JMP          SN4                       ; AWAY WE GO
+SN3             JSR          GNXTC                     ; GO GET NEXT CHAR
+                BEQ          SN6                       ; BR IF COMMA OR CR
+SN4             STA          FNAME1,Y                  ; PUT INTO FILENAME
+                INY                                    ; INC FN INDEX
+                CPY          #60                       ; ATFN CHAR LIMIT
+                BCC          SN3                       ; BR IF NOT
+SN5             JSR          GNXTC                     ; LOOP UNTIL CR OR COMMA
+                BNE          SN5
+;
+SN6             PLP                                    ; WAS THIS FN2 L OO
+                BNE          SN7                       ; BR IF IT WAS
+;
+                LDY          CMDNO
+                LDA          #FN2
+                AND          CMDSTB,Y                  ; IF FN2 NOT REQD THEN
+                BEQ          SN8                       ; BRANCH
+;
+                LDY          #30                       ; SET FN2 INDEX
+                PHP                                    ; INDICATE FN2 SEEK
+                BNE          SN2                       ; GO LOOK FOR FN2
+;
+SN7             LDA          FNAME2                    ; IF 1ST CHAR OF
+                CMP          #$A0                      ; FN2 IS BLANK THEN
+                BEQ          SERR1                     ; SYNTAX ERROR
+;
+SN8             LDA          FNAME1                    ; IF 1ST CHAR OF
+                CMP          #$A0                      ; FN1 IS NOT BLANK
+                BNE          SOPTS                     ; THEN GO LOOK FOR OPTIONS
+;
+                LDY          CMDNO
+                LDA          #NPB+NPE                  ; IF CMD MUST HAVE FILENAME
+                AND          CMDSTB,Y                  ; THEN
+                BEQ          SERR1                     ; THIS IS ERROR, ELSE
+;
+                BPL          SOPTS                     ; ITS EXCUTABLE WITHOUT
+;
+SERR1           JMP          CNF
+;
+CLRFNS          EQU          *
+                LDY          #60
+CLRFNA          EQU          *
+                LDA          #$A0
+SN1             STA          FNAME1-1,Y                ; CLEAR FN1, FN2
+                DEY
+                BNE          SN1
+                RTS
+                PAGE
+SN10            EQU          *                         ; FILE NAMES NOT REQD
+                STA          FNAME1
+                LDA          #NUM1+NUM2                ; IF NEITHER NUM1
+                AND          CMDSTB,Y                  ; OR NUM2 IS REQD
+                BEQ          SOPTS                     ; THEN GO LOOK AT OPTIONS
+;
+                JSR          GETNUM                    ; GO GET NUMERICS
+                BCS          SERR2
+;
+                TAY                                    ; IF HIGH DIGIT NOT
+                BNE          SERR3                     ; ZERO THEN BAD
+;
+                CPX          #17                       ; IF LOW DIGIT GT 16
+                BCS          SERR3                     ; THEN BAD
+;
+                LDY          CMDNO
+                LDA          #NUM1
+                AND          CMDSTB,Y                  ; IF WE WANT NUM2
+                BEQ          SN11
+;
+                CPX          #8                        ; IF NUM2>1
+                BCS          SERR1                     ; THEN ERROR, ELSE
+                BCC          SOPTS                     ; GO SCAN OPTIONS
+;
+SN11            EQU          *
+                TXA                                    ; IF NUM1=0
+                BNE          SOPTS                     ; THEN ERROR, ELSE GET OPTIONS
+;
+SERR3           LDA          #2                        ;RANGE ERROR!
+                JMP          ERROR
+SERR2           JMP          ESYNTX                    ;DISK CMD SYNTAX ERROR
+;
+                PAGE
+;
+; SOPTS - LOOK FOR SYNTAX OPTIONS
+;
+SOPTS           EQU          *
+                LDA          #0
+                STA          INOPTS                    ; CLEAR INPUT OPTIONS
+                STA          IMBITS
+                STA          CV                        ;DEFAULT VOLUME=0
+                STA          CL
+                STA          CL+1
+                JSR          CLRBYTE                   ;PATCH FOR BYTE PARAMETER (WAS STA TEMP1A)
+                LDA          LBUFD                     ; SET PASS 1
+;
+SP1             JSR          GNBC                      ; GO GET NON-BLANK CHAR
+                BNE          SP2                       ; BR IF NOT COMMA OR CR
+                CMP          #$8D                      ; IF CHAR IS COMMA
+                BNE          SP1                       ; THEN GO GET CHAR
+;
+                LDX          CMDNO                     ; OPTIONS INPUT = I
+                LDA          INOPTS                    ; ALLOW OPTS = A
+                ORA          CMDSTB+1,X                ; IF (A OR I)
+                EOR          CMDSTB+1,X                XOR A NOT = 0 THEN
+                BNE          SERR1                     ; WE HAVE UNALLOWED OPTIONS
+;
+                LDX          TEMP1A                    ; IF THIS IS PASS 2
+                BEQ          CMDGO                     ; THEN DONE,
+                STA          TEMP1A                    ; ELSE SET PASS
+                STX          LBUFD                     ; RESTORE LBUFD AND
+                BNE          SP1                       ; GO DO PASS 2
+;
+SP2             LDX          #OPT1L                    ; COMPARE CHAR HAVE WITH
+SP3             CMP          OPTAB1-1,X                ; CHARS IN OPT TABLE
+                BEQ          SP4                       ; IF FOUND CONTINUE,
+                DEX
+                BNE          SP3                       ; IF NOT FOUND
+SERR2A          BEQ          SERR2                     ; THEN SYNTAX ERROR
+;
+SP4             LDA          OPTAB2-1,X                ; IF CORRESPONDING OP TAB 2 IS
+                BMI          SP8                       ; MINUS THEN IT MONITOR BITS
+                ORA          INOPTS
+                STA          INOPTS
+                DEX
+;
+                STX          TEMP2A                    ; ELSE A NUMERIC MUST FOLLOW
+                JSR          GETNUM                    ; FOLLOW
+                BCS          SERR2
+;
+                LDA          TEMP2A                    ; GET IOTION NUMBER
+                ASL          A                         ; MULT BY 4
+                ASL          A
+                TAY
+;
+                LDA          CNUM+1                    ; IF RESULT NUM HI IS
+                BNE          SP5                       ; GT 0, THEN GT LOW RANGE
+                LDA          CNUM                      ; TEST RESULT LOW
+                CMP          OPTAB3,Y                  ; WITH LOW RANGE (LOW)
+                BCC          SERR3                     ; BR IF RESULT < LR
+                LDA          CNUM+1
+SP5             CMP          OPTAB3+3,Y
+                BCC          SP6                       ; BR IF LESS
+SERR3A          BNE          SERR3                     ; BR IF GREATER
+                LDA          CNUM
+                CMP          OPTAB3+2,Y
+                BCC          SP6                       ; BR IF LESS
+                BNE          SERR3A                    ; BR IF GREATER
+;
+SP6             LDA          TEMP1A                    ; IF PASS 1, THEN
+                BNE          SP1                       ; DONT STORE RESULT
+                TYA
+                LSR          A
+                TAY
+;
+                LDA          CNUM+1                    ; STORE THE RESULT
+                STA          CUROPT+1,Y
+                LDA          CNUM
+                STA          CUROPT,Y
+SP7             JMP          SP1                       ; GO FOR NEXT OPT
+;
+SP8             EQU          *                         ; MONITOR REQ
+                PHA                                    ; SAVE TYPE REQ
+                LDA          #CIO                      ; SET OPTION OF CIO
+                ORA          INOPTS
+                STA          INOPTS
+                PLA                                    ; RESTOERE REQ
+                AND          #$7F                      ; CLEAR CIO
+                ORA          IMBITS                    ; OR WITH PREV IMBITS
+                STA          IMBITS
+                BNE          SP7                       ; GO FOR NEXT
+;
+                BEQ          SERR2A                    ;BRANCH ALWAYS
+;
+CMDGO           JSR          CMDGO1                    ; CMDGO - EXECUTE COMMAND
+                JMP          CERTN
+;
+CMDGO1          EQU          *
+                JSR          CLRSTS
+                JSR          CLRCCB                    ; GO CLEAR CCB
+ECMD            EQU          *
+                LDA          CMDNO                     ; COMMAND NO
+                TAX                                    ; IS CMD EXEC TAB INDEX
+                LDA          CMDETB+1,X                ; GET CMD ADR
+                PHA                                    ; ONTO STACK
+                LDA          CMDETB,X
+                PHA
+                RTS                                    ; AND GOTO COMMAND
+
+; ####################################################################################################
+; #   END OF FILE:  CMDSCAN
+; #   LINES      :  270
+; #   CHARACTERS :  13581
+; #   Formatter  :  Assembly Language Reformatter 1.0.2 (07 January 1998)
+; ####################################################################################################

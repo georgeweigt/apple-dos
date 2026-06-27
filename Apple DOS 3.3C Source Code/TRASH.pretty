@@ -1,0 +1,296 @@
+; ####################################################################################################
+; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
+; #   FILE NAME:  TRASH
+; ####################################################################################################
+
+                PAGE
+;
+;FNDFIL - FIND FILE NAME IN VOLUUME DIR
+;
+FNDFIL          EQU          *
+                JSR          RDVTOC                    ; GO GET VTOC
+                LDA          CCBFN1                    ; MOVE FN PTR
+                STA          ZPGFCB                    ; TO ZERO PAGE
+                LDA          CCBFN1+1
+                STA          ZPGFCB+1
+                LDA          #1
+FF1             STA          TEMP2
+                LDA          #0
+                STA          DCBVDR
+                CLC
+FF2             EQU          *
+                INC          DCBVDR
+                JSR          RDVDIR                    ; GO GET VDIR SECTOR
+                BCS          FF4A
+                LDX          #0                        ; SET FOR 1ST FILE
+;
+FF3             STX          TEMP1                     ; SAVE INDEX
+                LDA          VDFILE,X                  ; GET FILE TRK
+                BEQ          FF6                       ; BR IF LAST ENTRY
+                BMI          FF7                       ; BR DELETED ENTRY
+                LDY          #0                        ; X=X+3
+                INX
+                INX
+FF4             INX
+                LDA          (ZPGFCB),Y                ; GET FN CHAR
+                CMP          VDFILE,X                  ; COMPARE TO ENTRY CHAR
+                BNE          FF5                       ; BR IF NOT SAME
+                INY
+                CPY          #30                       ; ALL 30 CHARS
+                BNE          FF4                       ; BR IF NOT
+                LDX          TEMP1                     ; GET INDEX
+                CLC                                    ; FILE FOUND
+                RTS                                    ; RETURN
+;
+FF5             EQU          *
+                JSR          VDINC
+                BCC          FF3
+                BCS          FF2
+;
+FF6             LDY          TEMP2                     ; LOOKING FOR DELETED
+                BNE          FF1                       ; BR IF NOT (DO)
+;
+FF7             LDY          TEMP2                     ; LOOKING FOR EMPTY
+                BNE          FF5                       ; BR IF NOT
+;
+MVFN            EQU          *
+                LDY          #0                        ; HAVE NEW ENTTRY
+                INX
+                INX
+FF8             INX
+                LDA          (ZPGFCB),Y                ; MOVE FILE NAME
+                STA          VDFILE,X
+                INY
+                CPY          #30
+                BNE          FF8
+;
+                LDX          TEMP1                     ; GET INDEX
+                SEC                                    ; SET NOT OLD
+                RTS                                    ; DONE
+VDINC           EQU          *
+                CLC
+                LDA          TEMP1
+                ADC          #35
+                TAX
+                CPX          #VDFLEN
+                RTS
+FF4A            EQU          *
+                LDA          #0
+                LDY          TEMP2
+                BNE          FF1
+                JMP          ERROR9
+                PAGE
+;
+;GETSEC - GET A SECTOR
+;
+GETSEC          EQU          *
+                LDA          DCBATK                    ; GET ALLOCATED TRK
+                BEQ          GSS1                      ; BR IF NONE
+;
+GS0             EQU          *
+                DEC          DCBALS                    ; DECREMENT SECTOR NO
+                BMI          CS2                       ; BR IF NO SECTORS REM
+;
+                CLC
+                LDX          #4                        ; 4 BYTE SHIFT
+GS1             ROL          DCBABM-1,X                ; SHIFT BYTE LEFT
+                DEX
+                BNE          GS1
+                BCC          GS0                       ; BR IF NO SECTOR
+;
+                INC          DCBNSA
+                BNE          GS1A
+                INC          DCBNSA+1
+GS1A            EQU          *
+                LDA          DCBALS                    ; GET ALLOCATED SECTOR
+                RTS                                    ; RETURN
+;
+CS2             LDA          #0                        ; CLEAR ALLOCATED
+                STA          DCBATK                    ; TRK
+;
+GSS1            LDA          #0                        ; SET SEARCH STATE=0
+                STA          TEMP3
+                JSR          RDVTOC                    ; GET VTOC
+;
+GS2             EQU          *
+                CLC
+                LDA          VALCA1                    ; GET LAST ALLOCATTED TRK
+                ADC          VALCA2                    ; AD (+1) OR (-1)
+                BEQ          GS3                       ; BR IF DECK TO ZERO
+                CMP          VNOTRK
+                BCC          GS5                       ; BR IF NOT AT OUTER LIMIT
+                LDA          #$FF                      ; SET (-1)
+                BNE          GS4
+GS3             LDA          TEMP3                     ; GET SEARCH STATE
+                BNE          ERR9                      ; BR IF NOT ZERO
+                LDA          #1                        ; SET (+1)
+                STA          TEMP3                     ; SET SEARCH STATE = 1
+GS4             STA          VALCA2                    ; SET NEW (+1) OR -1)
+                CLC
+                ADC          #17                       ; ADD VTOC TRK NO
+GS5             STA          VALCA1                    ; SET NEW LAST ALLOCATED
+                STA          DCBATK                    ; PUT IN DCB
+;
+                TAY                                    ; ALLOCATED TRACK
+                ASL          A                         ; TIME 4
+                ASL          A
+                TAY
+                LDX          #4
+                CLC
+GS6             LDA          VSECAL+3,Y                ; MOVE BIT MAP BYTE
+                STA          DCBABM-1,X
+                BEQ          GS7                       ; BR IF NO BITS ON
+                SEC                                    ; SET HAVE A SECTOR
+                LDA          #0                        ; CLEAR VTOC BYTE
+                STA          VSECAL+3,Y
+GS7             DEY
+                DEX
+                BNE          GS6                       ; BR IF MORE TO MOVE
+                BCC          GS2
+                JSR          WRVTOC                    ; GO WRITE VTOC
+                LDA          VNOSEC                    ; GET NO SECTORS
+                STA          DCBALS                    ; SET IN DCB SECTOR BYTE
+                BNE          GS0                       ; GO ALLOCATED SECTOR
+ERR9            JMP          ERROR9
+                PAGE
+;
+;FRETRK - FREE TRACK OF SECTORS
+;
+FRETRK          EQU          *
+                LDA          DCBATK                    ; GET ALLOCATED TRACK
+                BNE          FT1                       ; BR IF NONE
+                RTS                                    ; DONE
+FT1             PHA
+                JSR          RDVTOC                    ; GET VTOC
+                LDY          DCBALS                    ; GET SECTOS
+                PLA                                    ; GET TRACK
+                CLC                                    ; SET FREE
+                JSR          FRESEC                    ; GO FREE
+                LDA          #0                        ; CLEAR ALLOCATED TRK
+                STA          DCBATK
+                JMP          WRVTOC                    ; WRITE VTOC
+;
+;FRESEC - FREE A SECTOR
+;A=TRK, Y=SECTOR, C=ON/OFF
+;
+FRESEC          EQU          *
+FS1             LDX          #252                      ; 4 BYTE SHIFT
+FS2             ROR          DCBABM-252,X              ; SHIFT IN CARRY
+                INX                                    ; NEXT BYTE
+                BNE          FS2                       ; BR IF NOT DONE
+                INY                                    ; INC SECTOR NO
+                CPY          VNOSEC                    ; NORMAL
+                BNE          FS1                       ; BR IF NOT
+;
+                ASL          A                         ; TRACK*4
+                ASL          A
+                TAY
+                BEQ          FS4
+                LDX          #4
+FS3             LDA          DCBABM-1,X                ; GET BIT MAP BYTE
+                ORA          VSECAL+3,Y                ; OR WITH VTOC BM
+                STA          VSECAL+3,Y
+                DEY
+                DEX
+                BNE          FS3
+FS4             RTS                                    ; DONE
+                PAGE
+;
+;LOCSEC - LOCATE SECTOR FOR RECORD I/O
+;
+;RELSEC = (REL REC * RECLEN + RELBYTE)/256
+;SECBYT = REMAINDER
+;
+LOCSEC          EQU          *
+                LDA          CCBRRN                    ; RELATIVE RECORD NUMBER
+                STA          DCBCSB                    ; TO CSB FOR MULT
+                STA          DCBCRR                    ; AND CRR FOR SAVE
+                LDA          CCBRRN+1
+                STA          DCBCRS
+                STA          DCBCRR+1
+                LDA          #0
+                STA          DCBCRS+1                  ; HIGH CRS=0
+                LDY          #16                       ; 16 BIT MULT
+;
+LS1             TAX                                    ; SAVE MS BYTE
+                LDA          DCBCSB
+                LSR          A                         ; IF NO CARRY THEN NO PART PROD
+                BCS          LS1A
+                TXA
+                BCC          LS2
+LS1A            CLC
+                LDA          DCBCRS+1                  ; FPORM PARTIAL PROD
+                ADC          DCBRCL
+                STA          DCBCRS+1
+                TXA
+                ADC          DCBRCL+1
+;
+LS2             ROR          A                         ; MULT BY 2
+                ROR          DCBCRS+1
+                ROR          DCBCRS
+                ROR          DCBCSB
+                DEY                                    ; DEC BIT COUNT
+                BNE          LS1                       ; BR IF MORE BITS
+;
+                DO           DOS33B
+                CLC                                    ; FOR FILE LENGTH > $7FFF BYTES
+                FIN
+                LDA          CCBBYT                    ; ADD REL BYTE RESULT
+                STA          DCBCRB                    ; (SAVE REL BYTE)
+                ADC          DCBCSB
+                STA          DCBCSB
+                LDA          CCBBYT+1
+                STA          DCBCRB+1                  ; (SAVE REL BYTE)
+                ADC          DCBCRS
+                STA          DCBCRS
+                DO           DOS33B
+                BCC          DONTINC
+                INC          DCBCRS+1
+DONTINC         RTS
+                DS           2,$00
+                ELSE
+                LDA          #0
+                ADC          DCBCRS+1
+                STA          DCBCRS+1
+                RTS
+                FIN
+                PAGE
+ERROR1          LDA          #CREFUN
+                BNE          ERRORA
+ERROR2          LDA          #CRERR
+                BNE          ERRORA
+ERROR3          LDA          #CREMRE
+                BNE          ERRORA
+ERROR4          LDA          #CREPRO
+                BNE          ERRORA
+ERROR5          LDA          #CREEOF
+                BNE          ERRORA
+ERROR6          LDA          #CREFNF
+                BNE          ERRORA
+ERROR9          JMP          ERROR9X                   ;MUST CLOSE ALL FILES (WAS LDA #CRENSA)
+                NOP
+ERRR10          LDA          #CREFLK
+                BNE          ERRORA
+GOODIO          LDA          CCBSTA
+                CLC                                    ; CARRY=CLR
+                BCC          RETURN                    ; GO RETURN
+ERRORA          EQU          *
+ERRORB          SEC                                    ; CARRY=SET
+RETURN          EQU          *
+                PHP
+                STA          CCBSTA                    ; SET STA
+                LDA          #0                        ;(FIX FOR APPLE SYS MONITOR $48 USED BY RWTS)
+                STA          $48                       ;(THIS ADDED 11/1/78)
+                JSR          RTNFCB                    ; GO RTN FCB
+                PLP                                    ; GET STATUS
+                LDX          ENTSTK                    ; GET ENT STACK
+                TXS                                    ; RESTORE STACK
+                RTS                                    ; DONE
+EC2             EQU          *
+
+; ####################################################################################################
+; #   END OF FILE:  TRASH
+; #   LINES      :  284
+; #   CHARACTERS :  12221
+; #   Formatter  :  Assembly Language Reformatter 1.0.2 (07 January 1998)
+; ####################################################################################################

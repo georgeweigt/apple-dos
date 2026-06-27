@@ -1,0 +1,227 @@
+; ####################################################################################################
+; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
+; #   FILE NAME:  DOSGOER
+; ####################################################################################################
+
+                PAGE
+;
+; DOSGO - GOTO DOS
+;
+DOSGO           EQU          *
+                JSR          DOSENT                    ; GO TO DOS
+                BCC          DG3                       ; BR IF NOT ERROR
+;
+                LDA          CCBSTA                    ;GET RETURN CODE
+                CMP          #5
+                BEQ          YESEOF
+                JMP          CLOSFILE                  ;NO. CLOSE & COMPLAIN
+YESEOF          JMP          EOFFIX                    ;MABYE FIX IT UP?
+                NOP
+***************************
+*
+* DOS 3.3  (REV B) PATCH
+*
+***************************
+                DO           DOS33B
+DOSGO2A         JSR          MOVEOF                    ; MOVE END OF FILE PATCH
+                ELSE
+                NOP
+DOSGO2A         NOP
+                NOP
+                FIN
+                LDX          #0                        ; SET OTHER EIF
+                STX          CCBDAT                    ; DONE
+DG3             RTS
+;
+                PAGE
+;
+; ERROR ROUTINE
+;
+ESYNTX          LDA          #CREFLK+1
+                BNE          ERROR
+ENFA            LDA          #CREFLK+2
+                BNE          ERROR
+MFERR           LDA          #CREFLK+4
+                BNE          ERROR
+ETYP            EQU          *
+ERNU1           LDA          #CREFLK+3
+;
+ERROR           EQU          *
+                STA          SVA                       ; SAVE MSG NUMBER
+                JSR          CLRSTS1                   ;PATCH TO CLR RSTATE TOO (WAS JSR CLRSTS)
+                LDA          ASIBSW                    ; GET AS/IN BASIC SWITCH
+                BEQ          ERNAS                     ; BR IF NOT APPLESOFT
+                LDA          ASONERR                   ;GET AS ERR FLAG
+                BMI          ERRTN                     ; BRT IF ON ERR IS GO
+ERNAS           EQU          *
+                LDX          #0
+                JSR          EMPR                      ; GO OUTPUT
+                LDX          SVA                       ; GET SAVE MSG
+                JSR          EMPR                      ; GO OUTPUT MSG
+                JSR          PRCRIF                    ;OUTPUT A CARRAGE RETURN AFTER MESSAGE
+ERRTN           JSR          MVCSW                     ; GO MOVE CHAR I/ SW
+                JSR          TSTRUN
+                LDX          SVA
+                LDA          #03
+                BCS          ERRTN1                    ;DON'T GOTO BREAK HANDLER IF NOT RUNNING
+                JMP          (BREAK)
+ERRTN1          JMP          (CONT)                    ;REENTER CONT IF NOT RUN
+;
+EMPR            EQU          *
+                LDA          EMDTB,X                   ; GET ITS DISPL
+                TAX                                    ; INTO X
+EMPR1           EQU          *
+                STX          TEMP1A                    ; SAVE DISPL
+                LDA          EMSG,X                    ; GET MSG CHAR
+                PHA                                    ; SAVE CHAR
+                ORA          #$80                      ; SET MSB ON
+                JSR          ORTN1                     ; OUTPUT CHAR
+                LDX          TEMP1A                    ; GET INDEX
+                INX                                    ; INCREMENT IT
+                PLA                                    ; RE-LOAD CHAR
+                BPL          EMPR1                     ; BR IF MORE CHARS
+                RTS                                    ; DONE
+                PAGE
+;
+; OPNSUP - OPEN SET UP
+;
+OPNSUP          EQU          *
+                LDA          CV                        ; VOLUME
+                STA          CCBVOL
+                LDA          CD                        ; DRIVE
+                STA          CCBDRV
+                LDA          CS                        ; SLOT
+                STA          CCBSLT
+                LDA          FN1ADR                    ; FILENAME 1 ADR
+                STA          CCBFN1
+                LDA          FN1ADR+1
+                STA          CCBFN1+1
+                LDA          ZPGWRK
+                STA          CFTABA
+                LDA          ZPGWRK+1
+                STA          CFTABA+1
+                RTS
+;
+; MVFN1 - MOVE FILE NAME 1 TO FILE PTR
+;
+MVFN1           EQU          *
+                LDY          #29
+MVFN1A          LDA          FNAME1,Y
+                STA          (ZPGWRK),Y
+                DEY
+                BPL          MVFN1A
+                RTS
+;
+; MVBUFP - MOVE BUFFER PTRS TO CCB
+;
+MVBUFP          EQU          *
+                LDY          #30
+MVBP1           LDA          (ZPGWRK),Y
+                STA          CCBFCB-30,Y
+                INY
+                CPY          #38
+                BNE          MVBP1
+                RTS
+;
+; CLRSTS - CLEAR STATES
+;
+CLRSTS          EQU          *
+                LDY          #0
+                STY          ISTATE
+                STY          OSTATE
+                RTS
+                PAGE
+;
+; FILSRC - SEARCH FOR FILE NAME1
+;
+FILSRC          EQU          *
+                LDA          #0                        ; CLEAR SV AVAIL
+                STA          CNUM+1
+;
+                JSR          TSINIT                    ; GO INIT SEARCH
+                JMP          FLS1A
+FLS1            JSR          TSNXT                     ; LOOK AT NEXT
+                BEQ          FLS4                      ; BR IF NO NEXT
+;
+FLS1A           JSR          TSTOPN                    ; GO TEST OPEN
+                BNE          FLS2                      ; BR IF OPEN
+;
+                LDA          ZPGWRK                    ; SAVE AVAIL ENTRY ADR
+                STA          CNUM
+                LDA          ZPGWRK+1
+                STA          CNUM+1
+                BNE          FLS1                      ; GO LOOK SOME MORE
+;
+FLS2            LDY          #29                       ; FILE HAD 30 CHARS
+FLS3            LDA          (ZPGWRK),Y                ; GET CHAR
+                CMP          FNAME1,Y                  TEST CHAR
+                BNE          FLS1                      ; BR NOT
+                DEY
+                BPL          FLS3                      ; LOOK AT 30 CHARS
+                CLC                                    ; FOUND
+                RTS                                    ; DONE
+;
+FLS4            SEC                                    ; NOT FOUND
+                RTS                                    ; DONE
+                PAGE
+;
+; TSINIT - INITIALIZE FOR FTAB SEARCH
+; TSNXT - GET NEXT FTAB ENTRY
+;
+TSINIT          EQU          *
+                LDA          FTAB                      ; GET 1ST PTR ADR
+                LDX          FTAB+1
+                BNE          TSST
+TSNXT           EQU          *
+                LDY          #37                       ; GET LINK
+                LDA          (ZPGWRK),Y
+                BEQ          TSR                       ; BR IF NO LINK
+;
+                TAX
+                DEY
+                LDA          (ZPGWRK),Y
+TSST            EQU          *
+                STX          ZPGWRK+1
+                STA          ZPGWRK
+                TXA                                    ; SET NE CC
+TSR             RTS                                    ; RTN
+;
+; TSTOPN - TST FOR OPEN FILE
+;
+TSTOPN          EQU          *
+                LDY          #0                        ; GET 1ST CHAR OF FN
+                LDA          (ZPGWRK),Y
+                RTS
+;
+; TSTEXC - TEST CURRENT FILE FOR EXECUTE
+;
+TSTEXC          EQU          *
+                LDA          ESTATE                    ; IF ESTATE = 0
+                BEQ          TXC1                      ; THEN NO EXECUTE FILE
+                LDA          EFTABA                    ; TEST CURRENT
+                CMP          ZPGWRK
+                BNE          TXC2                      ; IS NOT
+                LDA          EFTABA+1
+                CMP          ZPGWRK+1
+                BEQ          TXC2                      ; IS
+TXC1            DEX                                    ; IS NOT
+TXC2            RTS                                    ; DONE
+                PAGE
+;
+; TSTFUC - TEST FILE USE CODE FOR PGM
+;
+TSTFUC          EQU          *
+                EOR          CCBFUC
+                BEQ          TFUCR
+                AND          #$7F
+                BEQ          TFUCR
+                JSR          ECLOSE                    ; GO CLOSE THE SOB
+                JMP          ERNU1
+TFUCR           RTS
+
+; ####################################################################################################
+; #   END OF FILE:  DOSGOER
+; #   LINES      :  215
+; #   CHARACTERS :  8197
+; #   Formatter  :  Assembly Language Reformatter 1.0.2 (07 January 1998)
+; ####################################################################################################

@@ -1,0 +1,266 @@
+; ####################################################################################################
+; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
+; #   FILE NAME:  XMISCMD
+; ####################################################################################################
+
+                PAGE
+;
+; EWRITE - WRITE CMD EXECUTE
+;
+EWRITE          EQU          *
+                JSR          RWPOSN                    ; GO POSITION FILE IF REQD
+                LDA          #5
+                STA          OSTATE                    ; SET OSTATE=5
+                JMP          CERTN                     ; DONE
+;
+; EREAD - READ COMD EXECUTE
+;
+EREAD           EQU          *
+                JSR          RWPOSN                    ; GO POSITION FILE IF REQD
+                LDA          #1
+                STA          ISTATE                    ; SET I STATE = DISK INPUT
+                JMP          CERTN                     ; DONE
+;
+; RWPOSN - POSTION FOR READ/ WRITE
+;
+RWPOSN          EQU          *
+                JSR          FILSRC                    ; FIND THE FILE
+                BCC          RWP1                      ; BR IF FILE FOUND
+                JSR          EOPEN                     ; GO OPEN FOR KLUTZ
+                JMP          RWP2                      ; THEN SKIP NEXT LINE
+RWP1            EQU          *
+                JSR          MVBUFP                    ; MOVE BUFF POINTERS
+RWP2            EQU          *
+                LDA          INOPTS                    ; GET IN OPTIONS
+                AND          #R+B                      ; WAS IT B OR R
+                BEQ          RWPR                      ; BR IF NOT
+                LDX          #3
+RWP2A           LDA          CR,X                      ; MOVE REL REC
+                STA          CCBRRN,X                  ; AND REL BYTE
+                DEX
+                BPL          RWP2A
+RWP3            EQU          *
+                LDA          #CRQPOS                   ; INDICATE POISTION REQUEST
+                STA          CCBREQ
+                JSR          DOSGO
+RWPR            RTS                                    ; DONE
+                PAGE
+;
+;
+; EINIT - EXECUTE INIT COMMAND
+;
+EINIT           EQU          *
+                LDA          #V                        ; MUST HAVE
+                AND          INOPTS                    ; VOL OPTION
+                BEQ          DFVOL                     ;GO SET DEFAULT VOLUME=254
+                LDA          CV                        ;CAN'T SPECIFY VOL=0
+                BNE          EINITA
+DFVOL           LDA          #$FE                      ;SET DEFAULT VOLUME NUMBER.
+                STA          CV
+EINITA          LDA          ASTART+1
+                STA          CCBBSA
+                LDA          #CRQFMT
+                JSR          OPEN
+                JMP          ESAVE
+;
+;
+; ECAT - PRINT CATALOG
+;
+ECAT            EQU          *
+                LDA          #CRQDIR
+                JSR          OPEN                      ; GO PRETEND OPEN
+                LDA          CCBVOL
+                STA          CV
+                RTS
+                PAGE
+;
+; EAS - EXECUTE APPLESOFT REQUEST
+;
+EAS             EQU          *
+                LDA          #ATSTV                    ; GET APPLESOFT TEST VALUE
+                JSR          SWTST                     ; GO SWITCH AND TEST
+                BEQ          GOINIT                    ; BR IF APPLESOFT
+                LDA          #0
+                STA          ASIBSW
+;
+EAS0            EQU          *
+                LDY          #30
+                JSR          CLRFNA
+                LDX          #FASBL
+EAS1            LDA          FASB-1,X                  ; MOVE SYSTEM FILE NAME
+                STA          FNAME1-1,X
+                DEX
+                BNE          EAS1
+;
+EAS2            EQU          *
+                LDA          #$C0
+                STA          ISTATE                    ; FOR RAM APPLESOFT
+                JMP          ERUN                      ; GO LOAD AND RUN
+;
+; EINT - EXECUTE INTEGER REQUEST
+;
+EINT            EQU          *
+                LDA          #ITSTV                    ; GET IB TEST VALUE
+                JSR          SWTST                     ; GO SWITCH AND TEST
+                BEQ          GOINT                     ;BR IF INTIGER BASIC...
+                LDA          #1                        ;LANGUAGE NOT AVIALABLE, TOO BAD...
+                JMP          ERROR
+GOINT           LDA          #0                        ;RESET RSTATE
+                STA          RSTATE                    ; FOR NON APPLESOFT PROG.
+GOINIT          EQU          *
+                JMP          DBINIT                    ; GO INIT DOS
+SWTST           EQU          *
+                CMP          AITSTL                    ; TEST CURRENT VALUE
+                BEQ          SWTR
+                STA          $C080                     ; TRY SWITCH 1
+                CMP          AITSTL                    ; TEST AGAIN
+                BEQ          SWTR                      ; BR IF NOW SAME
+                STA          $C081                     ; TRY SWITCH 2
+                CMP          AITSTL                    ; TEST AND
+SWTR            RTS                                    ; RETURN
+;
+                PAGE
+;
+; EEXEC - EXECUTE EXEC CMD
+;
+EEXEC           EQU          *
+                JSR          EOPEN                     ; OPEN FILE
+                LDA          CFTABA                    ; MOVE TABLE POINTERS
+                STA          EFTABA
+                LDA          CFTABA+1
+                STA          EFTABA+1
+                LDA          FNAME1                    ; USE FILNAME
+                STA          ESTATE                    ; SET EX STATE NON ZERO
+                BNE          EXP2
+;
+;
+; EPOS - EXECUTE POSITION
+;
+EPOS            EQU          *
+                JSR          FILSRC
+                BCC          EXP1
+                JSR          EOPEN
+                JMP          EXP2
+EXP1            JSR          MVBUFP
+EXP2            EQU          *
+                LDA          INOPTS                    ; GET OPTIONS
+                AND          #R                        ; TEST R
+                BEQ          EX2                       ; BR NOT R
+;
+EX0             LDA          CR                        ; IF CR NOT ZERO
+                BNE          EX1A                      ; THEN DECREMENT
+                LDX          CR+1
+                BEQ          EX2
+                DEC          CR+1
+EX1A            DEC          CR
+EX1             JSR          RBYTE                     ; AND READ A RCORD
+                BEQ          ICFD4
+                CMP          #$8D                      ; UNTIL CR
+                BNE          EX1
+                BEQ          EX0                       ; THEN TEST CR AGAIN
+;
+EX2             RTS                                    ; DONE
+                PAGE
+;
+; OCTD - OUTPUT A CHAR TO DISK
+;
+OCTD            EQU          *
+                JSR          TSTRUN                    ; GO TEST RUN
+                BCS          ICFDB                     ;BRANCH IF NOT RUN MODE
+                LDA          SVA                       ; CHAR IN SAVED ACU
+                STA          CCBDAT                    ; PUT INTO CCBDATA AREA
+                LDA          #CRQWR                    ; SET WRITE
+                STA          CCBREQ
+                LDA          #CRMNBT                   ; SET NEXT BYTE
+                STA          CCBRQM
+                JMP          DOSGO                     ; GO WRITE BYTE
+;
+; INCFD - INPUT A CHAR FROM DISK
+;
+ICFD            EQU          *
+                JSR          TSTRUN                    ; GO TEST RUN
+                BCS          ICFDB                     ;BRANCH IF NOT RUN MODE
+                LDA          #6                        ; SET OUT STE = 6
+ICFD3           EQU          *
+                STA          OSTATE                    ; TO CATCH ECHO
+                JSR          RBYTE
+                BNE          ICFD1                     ; BR IF NOT ZERO CHAR
+ICFD2           EQU          *
+                JSR          CLOSE
+                LDA          #3
+                CMP          OSTATE
+                BEQ          EX2
+ICFD4           EQU          *
+                LDA          #CREEOF
+                JMP          ERROR                     ; GO TO ERROR
+ICFD1           EQU          *
+                CMP          #$E0                      ;CHECK FOR LOWER CASE
+                BCC          ICFNLC                    ;BRANCH IF NOT LOWER-CASE
+                AND          #$7F                      ;STRIP HI BIT TO FOOL GETLINE
+ICFNLC          EQU          *
+                STA          SVA                       ; PUT INTO SAVED ACU
+                LDX          SVX                       ; MUST CHECK LAST FOR LOWER CASE
+                BEQ          ICFD0                     ;IGNORE IF FIRST CHAR.
+                DEX
+                LDA          LBUFF,X
+                ORA          #$80                      ;RESET HI BIT
+                STA          LBUFF,X                   ; EVEN THOUGH IT MAY NOT NEED IT
+ICFD0           EQU          *
+                JMP          ORTN                      ; GO RESTORE REGS AND RTS
+;
+TSTRUN          PHA
+                LDA          ASIBSW                    ; GET AS/INT BASIC SWITCH
+                BEQ          TR1                       ; BR IF INT
+                LDX          $76                       ;CHECK APPLESOFT RUN FLAG
+                INX                                    ;(NOT RUN=0 AFTER INCREMENT)
+                BEQ          NOTRUN                    ;IF SAYS RUNNING MAKE SURE WITH PROMPT.
+                LDX          PROMPT                    ;TEST APPLESOFT RUNNING.
+                CPX          #']'+$80
+                BEQ          NOTRUN                    ; BR IF NOT RUN
+TR0             PLA
+                CLC                                    ;INDICATE PROGRAM RUNNING
+                RTS
+TR1             EQU          *
+                LDA          $D9                       ; GET INT RUN FLAG
+                BMI          TR0                       ; BR IF RUN
+NOTRUN          PLA                                    ;INDICATE PROGRAM NOT RUNNING
+                SEC                                    ; WITH CARRY SET.
+                RTS
+;
+ICFDB           EQU          *                         ; NOT RUN MODE
+                JSR          CLOSE                     ; GO CLOSE FILE
+                JSR          CLRSTS                    ; GO CLEAR STATES
+                JMP          ORTN
+                PAGE
+;
+; NXTEXC - NEXT EXECUTE CHAR
+;
+NXTEXC          EQU          *
+                JSR          MVEFTA
+                JSR          MVBUFP                    ; GO MOVE PTRS
+                LDA          #3
+                BNE          ICFD3
+;
+; RBYTE - READ NEXT BYTE
+;
+RBYTE           EQU          *
+                LDA          #CRQRD                    ; SET READ
+                STA          CCBREQ
+                LDA          #CRMNBT                   ; SET NEXT BYTE
+                STA          CCBRQM
+                JSR          DOSGO                     ; GO TO DOS
+                LDA          CCBDAT                    ; GET THE DATA BYTE
+                RTS
+MVEFTA          EQU          *
+                LDA          EFTABA+1                  ; MOVE TABLE ADR
+                STA          ZPGWRK+1                  ; NO ZPG
+                LDA          EFTABA
+                STA          ZPGWRK
+                RTS
+
+; ####################################################################################################
+; #   END OF FILE:  XMISCMD
+; #   LINES      :  254
+; #   CHARACTERS :  10954
+; #   Formatter  :  Assembly Language Reformatter 1.0.2 (07 January 1998)
+; ####################################################################################################

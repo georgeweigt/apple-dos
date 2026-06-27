@@ -1,0 +1,68 @@
+; ####################################################################################################
+; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
+; #   FILE NAME:  DOSPTCH
+; ####################################################################################################
+
+                SBTL         "DOS PATCHES"
+********************************
+*
+* DOS 3.2 PATCHES BY DICK HUSTON
+*
+********************************
+* AFTER THE FACT PATCHES
+* CLRBYTE CALLED FROM DOS2 LABEL SOPTS +7 LINES
+* CLRSTS1 CALLED FROM DOS3 LABEL ERROR +2 LINES
+* ERROR9X CALLED FROM DOS5 LABEL ERROR9
+*
+*
+                REP          40
+*
+* DOS 3.3 REVISION B PATCH
+*
+                REP          40
+*****************************
+SDP1            EQU          *                         ;START OF DOS PATCHES
+RCPATCH         EQU          *
+                JSR          SETVID
+                LDA          $C081
+                LDA          $C081
+                LDA          #0
+                STA          $E000
+                DO           DOS33B
+                JSR          OFF80
+                JMP          RCBACK
+                ELSE
+                JMP          RCBACK
+                DS           3,0
+                FIN
+******************************
+CLRBYTE         STA          TEMP1A
+                STA          CB                        ;SET TYPE PARAM DEFAUTL=0
+                STA          CB+1
+                RTS
+                SKP          4
+CLRSTS1         JSR          CLRSTS
+                STY          RSTATE                    ;PREVENTS FOREVER 'FILE NOT FOUND'
+                RTS                                    ; IN APPLESOFT
+*****************************
+ERROR9X         JSR          RTNFCB
+                LDX          ENTSTK                    ;GET STACK
+                TXS                                    ;MESSY MESSY
+                JSR          CLALL                     ;GO CLOSE EVERYBODY
+                TSX
+                STX          ENTSTK                    ;RESTORE SAVE STK
+                LDA          #9
+                JMP          ERRORA                    ;AND BACK
+******************************
+EDP1            EQU          *-1                       ;END OF DOS PATCHES FOR RELOCTR
+ENDOFDOS        EQU          *
+                DO           ENDOFDOS-$4000
+                FAIL         2,'DOS                    LENGTH NOT CORRECT'
+                FIN
+
+; ####################################################################################################
+; #   END OF FILE:  DOSPTCH
+; #   LINES      :  56
+; #   CHARACTERS :  2060
+; #   Formatter  :  Assembly Language Reformatter 1.0.2 (07 January 1998)
+; ####################################################################################################

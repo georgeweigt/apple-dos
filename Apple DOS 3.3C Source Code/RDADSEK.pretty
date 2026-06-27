@@ -1,0 +1,215 @@
+; ####################################################################################################
+; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
+; #   FILE NAME:  RDADSEK
+; ####################################################################################################
+
+                SBTL         '16-SECTOR READ ADDRESS'
+****************************
+*                          *
+*    READ ADDRESS FIELD    *
+*        SUBROUTINE        *
+*    (16-SECTOR FORMAT)    *
+*                          *
+****************************
+*                          *
+*    READS VOLUME, TRACK   *
+*        AND SECTOR        *
+*                          *
+*   ---- ON ENTRY ----     *
+*                          *
+*  XREG: SLOTNUM TIMES $10 *
+*                          *
+*  READ MODE (Q6L, Q7L)    *
+*                          *
+*   ---- ON EXIT -----     *
+*                          *
+*  CARRY SET IF ERROR.     *
+*                          *
+*  IF NO ERROR:            *
+*    A-REG HOLDS $AA.      *
+*    Y-REG HOLDS $00.      *
+*    X-REG UNCHANGED.      *
+*    CARRY CLEAR.          *
+*                          *
+*    CSSTV HOLDS CHKSUM,   *
+*      SECTOR, TRACK, AND  *
+*      VOLUME READ.        *
+*                          *
+*    USES TEMPS COUNT,     *
+*      LAST, CSUM, AND     *
+*      4 BYTES AT CSSTV.   *
+*                          *
+*    ---- EXPECTS ----     *
+*                          *
+*   ORIGINAL 10-SECTOR     *
+*  NORMAL DENSITY NIBLS    *
+*   (4-BIT), ODD BITS,     *
+*   THEN EVEN.             *
+*                          *
+*    ---- CAUTION ----     *
+*                          *
+*         OBSERVE          *
+*    'NO PAGE CROSS'       *
+*      WARNINGS ON         *
+*    SOME BRANCHES!!       *
+*                          *
+*    ---- ASSUMES ----     *
+*                          *
+*    1 USEC CYCLE TIME     *
+*                          *
+****************************
+RDADR16         LDY          #$FC
+                STY          COUNT                     'MUST FIND' COUNT.
+RDASYN          INY
+                BNE          RDA1                      LOW ORDER OF COUNT.
+                INC          COUNT                     (2K NIBLS TO FIND
+                BEQ          RDERR                     ADR MARK, ELSE ERR)
+RDA1            LDA          Q6L,X                     READ NIBL.
+                BPL          RDA1                      *** NO PAGE CROSS! ***
+RDASN1          CMP          #$D5                      ADR MARK 1?
+                BNE          RDASYN                    (LOOP IF NOT)
+                NOP          ADDED                     NIBL DELAY.
+RDA2            LDA          Q6L,X
+                BPL          RDA2                      *** NO PAGE CROSS! ***
+                CMP          #$AA                      ADR MARK 2?
+                BNE          RDASN1                    (IF NOT, IS IT AM1?)
+                LDY          #$3                       INDEX FOR 4-BYTE READ.
+*            (ADDED NIBL DELAY)
+RDA3            LDA          Q6L,X
+                BPL          RDA3                      *** NO PAGE CROSS! ***
+                CMP          #$96                      ADR MARK 3?
+                BNE          RDASN1                    (IF NOT, IS IT AM1?)
+*        (LEAVES CARRY SET!)
+                LDA          #$0                       INIT CHECKSUM.
+RDAFLD          STA          CSUM
+RDA4            LDA          Q6L,X                     READ 'ODD BIT' NIBL.
+                BPL          RDA4                      *** NO PAGE CROSS! ***
+                ROL          A                         ;ALIGN ODD BITS, '1' INTO LSB.
+                STA          LAST                      (SAVE THEM)
+RDA5            LDA          Q6L,X                     READ 'EVEN BIT' NIBL.
+                BPL          RDA5                      *** NO PAGE CROSS! ***
+                AND          LAST                      MERGE ODD AND EVEN BITS.
+                STA          CSSTV,Y                   STORE DATA BYTE.
+                EOR          CSUM                      XOR CHECKSUM.
+                DEY
+                BPL          RDAFLD                    LOOP ON 4 DATA BYTES.
+                TAY          IF                        FINAL CHECKSUM
+                BNE          RDERR                     NONZERO, THEN ERROR.
+RDA6            LDA          Q6L,X                     FIRST BIT-SLIP NIBL.
+                BPL          RDA6                      *** NO PAGE CROSS! ***
+                CMP          #$DE
+                BNE          RDERR                     ERROR IF NONMATCH.
+                NOP          DELAY                     BETWEEN NIBLS.
+RDA7            LDA          Q6L,X                     SECOND BIT-SLIP NIBL.
+                BPL          RDA7                      *** NO PAGE CROSS! ***
+                CMP          #$AA
+                BNE          RDERR                     ERROR IF NONMATCH.
+RDEXIT          CLC          CLEAR                     CARRY ON
+                RTS          NORMAL                    READ EXITS.
+                SBTL         '16-SECTOR SEEK'
+**************************
+*                        *
+*  FAST SEEK SUBROUTINE  *
+*                        *
+**************************
+*                        *
+*   ---- ON ENTRY ----   *
+*                        *
+*  X-REG HOLDS SLOTNUM   *
+*         TIMES $10.     *
+*                        *
+*  A-REG HOLDS DESIRED   *
+*         HALFTRACK.     *
+*         (SINGLE PHASE) *
+*                        *
+*  CURTRK HOLDS CURRENT  *
+*          HALFTRACK.    *
+*                        *
+*   ---- ON EXIT -----   *
+*                        *
+*  A-REG UNCERTAIN.      *
+*  Y-REG UNCERTAIN.      *
+*  X-REG UNDISTURBED.    *
+*                        *
+*  CURTRK AND TRKN HOLD  *
+*      FINAL HALFTRACK.  *
+*                        *
+*  PRIOR HOLDS PRIOR     *
+*    HALFTRACK IF SEEK   *
+*    WAS REQUIRED.       *
+*                        *
+*  MONTIMEL AND MONTIMEH *
+*    ARE INCREMENTED BY  *
+*    THE NUMBER OF       *
+*    100 USEC QUANTUMS   *
+*    REQUIRED BY SEEK    *
+*    FOR MOTOR ON TIME   *
+*    OVERLAP.            *
+*                        *
+* --- VARIABLES USED --- *
+*                        *
+*  CURTRK, TRKN, COUNT,  *
+*    PRIOR, SLOTTEMP     *
+*    MONTIMEL, MONTIMEH  *
+*                        *
+**************************
+SEEK            STX          SLOTTEMP                  ;SAVE X-REG
+                STA          TRKN                      ;SAVE TARGET TRACK
+                CMP          CURTRK                    ON DESIRED TRACK?
+                BEQ          SEEKRTS                   ;YES, RETURN
+                LDA          #$0
+                STA          TRKCNT                    ;HALFTRACK COUNT.
+SEEK2           LDA          CURTRK                    ;SAVE CURTRK FOR
+                STA          PRIOR                     ; DELAYED TURNOFF.
+                SEC
+                SBC          TRKN                      ;DELTA-TRACKS.
+                BEQ          SEEKEND                   ;BR IF CURTRK=DESTINATION
+                BCS          OUT                       (MOVE OUT, NOT IN)
+                EOR          #$FF                      CALC TRKS TO GO.
+                INC          CURTRK                    INCR CURRENT TRACK (IN).
+                BCC          MINTST                    (ALWAYS TAKEN)
+OUT             ADC          #$FE                      CALC TRKS TO GO.
+                DEC          CURTRK                    DECR CURRENT TRACK (OUT).
+MINTST          CMP          TRKCNT
+                BCC          MAXTST                    AND 'TRKS MOVED'.
+                LDA          TRKCNT
+MAXTST          CMP          #$C
+                BCS          STEP2                     ;IF TRKCNT>$B LEAVE Y ALONE (Y=$B).
+STEP            TAY                                    ;ELSE SET ACCELERATION INDEX IN Y
+STEP2           EQU          *
+                SEC                                    ;CARRY SET=PHASE ON
+                JSR          SETPHASE                  ;PHASE ON
+                LDA          ONTABLE,Y                 FOR 'ONTIME'.
+                JSR          MSWAIT                    (100 USEC INTERVALS)
+*
+                LDA          PRIOR
+                CLC                                    ;CARRY CLEAR=PHASE OFF
+                JSR          CLRPHASE                  ;PHASE OFF
+                LDA          OFFTABLE,Y                THEN WAIT 'OFFTIME'.
+                JSR          MSWAIT                    (100 USEC INTERVALS)
+                INC          TRKCNT                    'TRACKS MOVED' COUNT.
+                BNE          SEEK2                     (ALWAYS TAKEN)
+*
+SEEKEND         EQU          *                         ;END OF SEEKING
+                JSR          MSWAIT                    ;A=0: WAIT 25 MS SETTLE
+                CLC                                    ; AND TURN OFF PHASE
+*
+* TURN HEAD STEPPER PHASE ON/OFF
+*
+SETPHASE        EQU          *
+                LDA          CURTRK                    ;GET CURRENT PHASE
+CLRPHASE        EQU          *
+                AND          #3                        ;MASK FOR 1 OF 4 PHASES
+                ROL          A                         ;DOUBLE FOR PHASE INDEX
+                ORA          SLOTTEMP
+                TAX
+                LDA          PHASEOFF,X                ;FLIP THE PHASE
+                LDX          SLOTTEMP                  ;RESTORE X-REG
+SEEKRTS         RTS                                    ;AND RETURN
+
+; ####################################################################################################
+; #   END OF FILE:  RDADSEK
+; #   LINES      :  203
+; #   CHARACTERS :  8943
+; #   Formatter  :  Assembly Language Reformatter 1.0.2 (07 January 1998)
+; ####################################################################################################

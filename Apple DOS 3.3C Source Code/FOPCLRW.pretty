@@ -1,0 +1,298 @@
+; ####################################################################################################
+; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
+; #   FILE NAME:  FOPCLRW
+; ####################################################################################################
+
+                PAGE
+;
+; FOPEN - OPEN A FILE
+;
+FOPEN           EQU          *
+                JSR          DOPEN
+                JMP          GOODIO
+;
+DOPEN           EQU          *
+;
+                JSR          DCBSUP
+;
+;
+                LDA          #1
+                STA          DCBSDL+1
+                LDX          CCBRLN+1                  ; MOVE RECORD LENGTH
+                LDA          CCBRLN
+                BNE          F02
+                CPX          #0
+                BNE          F02
+                INX                                    ; SET RL=256
+F02             STA          DCBRCL
+                STX          DCBRCL+1
+;
+                JSR          FNDFIL                    ; GO FIND FILE
+                BCC          F03                       ; BR IF FOUND
+;
+*  CREATE FILE IF COMMAND IS SAVE, OPEN, OR BSAVE
+;
+                STX          TEMP1                     ; SAVE DIR. INDEX.
+                LDX          CMDNO                     ;TEST COMMAND FOR CREATE FLAG.
+                LDA          CMDSTB,X                  ; (BIT 0 MUST=1)
+                LDX          TEMP1                     ;RESTORE DIR INDEX
+                LSR          A                         ;SHIFT CREFLG BIT TO CARRY
+                BCS          F02B                      ;BRANCH ON VALID INSTR.
+                LDA          ISTATE                    ;FIND OUT IF TRYING TO LOAD APPLESOFT
+                CMP          #$C0
+                BNE          F02A                      ;NO GO
+                JMP          ERROR1
+F02A            JMP          ERROR6                    ;PRINT "FILE NOT FOUND" MESSAGE.
+F02B            LDA          #0
+                STA          VDFILE+34,X
+                LDA          #1
+                STA          VDFILE+33,X
+                STX          TEMP1                     ; SAVE VDIR INDEX
+                JSR          GETSEC                    ; GO ALLOCATE SECTOR
+                LDX          TEMP1
+                STA          VDFILE+1,X                ; PUT SECTOR INTO VDIR
+                STA          DCBFDS                    ; PUT SECTOR AS 1ST FILE DIR
+                STA          DCBCDS                    ; PUT SECTOR AS CURRENT FILE DIR
+;
+                LDA          DCBATK                    ; GET ALLOCATED TRACK
+                STA          VDFILE,X                  ; PUT INTO VDIR
+                STA          DCBFDT                    ; AND AS 1ST FILE DIR
+                STA          DCBCDT                    ; AND AS CURRENT FILE DIR
+;
+                LDA          CCBFUC                    ; SET USE CODE
+                STA          VDFILE+2,X                ; INTO DIRECTORY
+;
+                JSR          WRVDIR                    ; GO WRITE VOL DIRECTORY
+;
+                JSR          MVFCBD                    ; MOVE FILE DIR ADR TO ZP
+                JSR          CLRSEC                    ; GO CLEAR IT
+                JSR          WRFDGO                    ; GO WRITE FILE DIRECTORY
+; DONE CREATION
+                LDX          TEMP1                     ; RE-GET INDEX
+                LDA          #CREFNF
+                STA          CCBSTA
+;
+F03             EQU          *
+                LDA          VDFILE,X                  ; MOVE FILE DIR TRACK
+                STA          DCBFDT
+                LDA          VDFILE+1,X                ; MOVE FILE DIR SECTOR
+                STA          DCBFDS
+                LDA          VDFILE+2,X                ; 7OVE FILE USE CODE
+                STA          CCBFUC
+                STA          DCBFUC
+                LDA          VDFILE+33,X
+                STA          DCBNSA
+                LDA          VDFILE+34,X
+                STA          DCBNSA+1
+                STX          DCBVDI                    ;SAVE DIRECTORY INDEX
+;
+                LDA          #255                      ; INDICATE NO SECTOR
+                STA          DCBCMS                    ; IN MEMORY
+                STA          DCBCMS+1
+                LDA          VTDMS                     ; MOVE MAX FD SECTS
+                STA          DCBDMS                    ; TO DCB
+                CLC
+                JMP          RDFDIR                    ; READ 1ST DIRECTORY RECORD
+;
+;
+;
+;
+DCBSUP          EQU          *
+                LDA          #0
+                TAX
+F01             STA          FCBDCB,X                  ; CLEAR DCB
+                INX
+                CPX          #DCBLEN
+                BNE          F01
+;
+                LDA          CCBVOL                    ; MOVE VOL
+                EOR          #$FF                      ; INVERT VOL BITS
+                STA          DCBVOL
+                LDA          CCBDRV                    ; MOVE DRIVE
+                STA          DCBDRV
+                LDA          CCBSLT                    ; GET USER SPEC SLOT
+                ASL          A                         ; SLOT*16
+                ASL          A
+                ASL          A
+                ASL          A
+                TAX
+F01A            EQU          *
+                STX          DCBSLT
+                LDA          #17
+                STA          DCBVTN
+                RTS
+                PAGE
+;
+; FCLOSE - CLOSE A FILE
+;
+FCLOSE          EQU          *
+                JSR          WRSECT                    ; WRITE OPEN SECTOR
+                JSR          WRFDIR                    ; GO WRITE FILE DIRECTORY
+                JSR          FRETRK                    ; FREE UNUSED SECTORS
+                LDA          #IBCWTS
+                AND          DCBWRF
+                BEQ          FC2
+;
+                JSR          RDVTOC                    ; READ VTOC
+                LDA          #0
+                CLC
+FC1             EQU          *
+                JSR          RDVDIR                    ; READ VDIR
+                SEC
+                DEC          DCBVDR
+                BNE          FC1                       ; BR IF NOT
+                LDX          DCBVDI                    ; GET FILES INDEX
+                LDA          DCBNSA                    ; MOVE NO SECTORS ALLOCATED
+                STA          VDFILE+33,X
+                LDA          DCBNSA+1
+                STA          VDFILE+34,X
+                JSR          WRVDIR                    ; WRITE VOL DIR REC
+;
+;
+FC2             EQU          *
+                JMP          GOODIO                    ; DONE
+                PAGE
+;
+*   FRNME - RENAME A FILE
+;
+FRNME           EQU          *
+                JSR          DOPEN                     ; GO OPEN FILE
+                LDA          DCBFUC                    ; GET USE CODE
+                BMI          ER10                      ; BR IF LOCKED
+                LDA          CCBFN2                    ; MOVE NEW FN
+                STA          ZPGFCB                    ; PTR TO ZPG
+                LDA          CCBFN2+1
+                STA          ZPGFCB+1
+                LDX          TEMP1                     ; GET VDIR INDEX
+                JSR          MVFN                      ; GO MOVE FILE NAME
+                JSR          WRVDIR                    ; GO WRITE VDIR
+                JMP          GOODIO                    ; DONE RENAME
+                PAGE
+;
+*   FREAD - READ A FILE
+;
+FREAD           EQU          *
+;
+                LDA          CCBRQM                    ; GET REQ MOD
+                CMP          #CRMMAX                   ; TEST LIMIT
+                BCS          ERR3A                     ; BR BAD
+;
+                ASL          A                         ; CODE*2
+                TAX
+                LDA          RVT+1,X                   ; GET READ ROUTINE
+                PHA                                    ; VECTOR ADR
+                LDA          RVT,X
+                PHA                                    ; AND
+                RTS                                    ; GO TO IT
+;
+ERR3A           JMP          ERROR3
+ER10            JMP          ERRR10
+;
+*   FWRITE - WRITE A FILE
+;
+FWRITE          EQU          *
+                LDA          DCBFUC                    ; IS FILE LOCKED
+                BMI          ER10                      ; BR IF LOCKED
+                LDA          CCBRQM                    ; GET REQ MOD
+                CMP          #CRMMAX                   ; IN RANGE
+                BCS          ERR3A                     ; BR IF NOT IN RANGE
+;
+                ASL          A
+                TAX
+                LDA          WVT+1,X                   ; GET ROUTINE ADR
+                PHA
+                LDA          WVT,X
+                PHA
+                RTS                                    ; AND GO TO IT
+                PAGE
+;
+*   RSPBYT - READ A SPECIFIC BYTE
+;
+RSPBYT          EQU          *
+                JSR          LOCSEC                    ; GO GET REQD REL SECTOR
+;
+*   RNXBYT - READ NEXT BYTE
+;
+RNXBYT          JSR          GETBYT                    ; GO GET BYTE
+                STA          CCBDAT                    ; PUT IN CCB
+                JMP          GOODIO                    ; DONE
+;
+*   RSPBLK - READ A SPECIFIC BLOCK
+;
+RSPBLK          JSR          LOCSEC                    ; GO LOCATE REL SECTOR
+;
+*   RNXBLK - READ NEXT BLOCK
+;
+RNXBLK          EQU          *
+                JSR          DTBLN                     ; GO DECR LEN (NOT RTN IF=0)
+                JSR          GETBYT                    ; GO GET BYTE
+                PHA
+                JSR          MIBDA                     ; GO MOVE BLOCK ADR AND INCR
+                LDY          #0
+                PLA
+                STA          (ZPGFCB),Y                ; SET DATA BYTE
+                JMP          RNXBLK                    ; GO FOR NEXT BYTE
+;
+*   GETBYT - GET A DATA BYTE
+;
+GETBYT          EQU          *
+                JSR          LOCNXB                    ; LOCATE NEXT BYTE
+                BCS          EOFIN                     ; BR IF EOF
+                LDA          (ZPGFCB),Y                ; GET DAT BYTE
+                PHA                                    ; SAVE IT
+                JSR          INCRRB                    ; INCR REC BYTE
+                JSR          INCSCB                    ; INCR SEC BYTE
+                PLA                                    ; GET SAVED BYTE
+                RTS                                    ; RETURN
+;
+EOFIN           JMP          ERROR5                    ; GO TO EOF RTN
+                PAGE
+;
+*   WSPBYT - WRITE SPECIFIC BYTE
+;
+WSPBYT          EQU          *
+                JSR          LOCSEC                    ; GO LOCATE SECTOR
+;
+*   WNXBYT - WRITE NEXT BYTE
+;
+WNXBYT          EQU          *
+                LDA          CCBDAT                    ; GET THE BYTE
+                JSR          PUTBYT                    ; GO WRITE BYTE
+                JMP          GOODIO                    ; DONE
+;
+*   WSPBLK - WRITE A SPECIFIC BLOCK
+;
+WSPBLK          EQU          *
+                JSR          LOCSEC                    ; GO LOCATE SECTOR
+;
+*   WNXBLK - WRITE NEXT BLOCK
+;
+WNXBLK          EQU          *
+                JSR          MIBDA                     ; GO MOVE ADR TO ZPG AND DEC
+                LDY          #0
+                LDA          (ZPGFCB),Y                ; GET DATA BYTE
+                JSR          PUTBYT                    ; GO PUT IT
+                JSR          DTBLN                     ; GO DEC BLK LEN (NOT RTN IF = 0)
+                JMP          WNXBLK
+;
+*   PUTBYT - PUT OUT ONE BYTE
+;
+PUTBYT          EQU          *
+                PHA                                    ; SAVE DATA BYTE
+                JSR          LOCNXB                    ; GO LOCATE NEXT BYTE
+;
+PB0             PLA                                    ; GET SAVED BYTE
+                STA          (ZPGFCB),Y                ; PUT THE BYTE
+                LDA          #$40                      ; SET WRITE SECTOR REQD
+                ORA          DCBWRF
+                STA          DCBWRF
+;
+                JSR          INCRRB                    ; INCR REL REC BYTE
+                JMP          INCSCB                    ; INCR SECTOR BYTE
+
+; ####################################################################################################
+; #   END OF FILE:  FOPCLRW
+; #   LINES      :  286
+; #   CHARACTERS :  11685
+; #   Formatter  :  Assembly Language Reformatter 1.0.2 (07 January 1998)
+; ####################################################################################################

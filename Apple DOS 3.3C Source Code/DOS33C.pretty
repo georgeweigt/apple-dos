@@ -1,0 +1,48 @@
+; ####################################################################################################
+; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
+; #   FILE NAME:  DOS33C
+; ####################################################################################################
+
+                SBTL         "DOS3.3C w/ APPEND fix, U/L case"
+                LST          ON,VSYM
+                MSB          OFF
+ORIGIN          EQU          $1B00
+DIAGMODE        EQU          0
+DOS33B          EQU          1
+ULC             EQU          0                         ;1=ASM with lower case patch
+                INCLUDE      RELOCTR,,2
+                INCLUDE      DOSINIT,,2
+                INCLUDE      DOSHOOK,,2
+                INCLUDE      CMDSCAN,,2
+                INCLUDE      XOPNCLS,,2
+                INCLUDE      XLODSAV,,2
+                INCLUDE      XMISCMD,,2
+                INCLUDE      DOSGOER,,2
+                INCLUDE      BLDFTAB,,2
+                INCLUDE      CMDTBLS,,2
+                INCLUDE      FDOSENT,,2
+                INCLUDE      FOPCLRW,,2
+                INCLUDE      FDELCAT,,2
+                INCLUDE      FMTRWIO,,2
+                INCLUDE      FLOCNXB,,2
+                INCLUDE      FLOCSEC,,2
+                INCLUDE      FVCBUFS,,2
+                INCLUDE      BOOTLDR,,2
+                INCLUDE      COREQUS,,1
+                INCLUDE      PRENIBL,,1
+                INCLUDE      WRITRTN,,1
+                INCLUDE      POSTNRD,,1
+                INCLUDE      RDADSEK,,1
+                INCLUDE      MSWAITR,,1
+                INCLUDE      WRITADR,,1
+                INCLUDE      RWTSONE,,1
+                INCLUDE      RWTSTWO,,1
+                INCLUDE      FORMATR,,1
+                INCLUDE      DOSPTCH,,1
+
+; ####################################################################################################
+; #   END OF FILE:  DOS33C
+; #   LINES      :  36
+; #   CHARACTERS :  1440
+; #   Formatter  :  Assembly Language Reformatter 1.0.2 (07 January 1998)
+; ####################################################################################################

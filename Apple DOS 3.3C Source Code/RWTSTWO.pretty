@@ -1,0 +1,314 @@
+; ####################################################################################################
+; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
+; #   FILE NAME:  RWTSTWO
+; ####################################################################################################
+
+*
+* DISK IS NOW UP TO SPEED: READ IT!
+* NOW CHECK: IF IT IS NOT THE FORMAT DISK COMMAND,
+*  LOCATE THE CORRECT SECTOR FOR THIS OPERATION.
+*
+TRYTRK          EQU          *
+                LDY          #$0C
+                LDA          (IOBPL),Y                 ;GET COMMAND CODE #
+                BEQ          GALLDONE                  ;IF NULL COMMAND, GO HOME TO BED.
+                CMP          #$04                      ;FORMAT THE DISK?
+                BEQ          FORMDSK                   ;ALLRIGHT,ALLRIGHT, I WILL...
+                ROR          A                         ;SET CARRY=1 FOR READ, 0 FOR WRITE
+                PHP                                    ;AND SAVE THAT
+                BCS          TRYTRK2                   ;MUST PRENIBBLIZE FOR WRITE.
+                LST          OFF
+                DO           DIAGMODE
+                LDY          #TC7                      ;SAY 'PRENIBBLIZING'
+                STY          TL7
+                FIN
+                LST          ON
+                JSR          PRENIB16
+                LST          OFF
+                DO           DIAGMODE
+                LDY          #SP                       ;PRENIB FINISHED
+                STY          TL7
+                FIN
+                LST          ON
+TRYTRK2         LDY          #$30                      ;ONLY 48 RETRIES OF ANY KIND.
+                STY          RETRYCNT
+TRYADR          LDX          SLOT                      ;GET SLOT NUM INTO X-REG
+                LST          OFF
+                DO           DIAGMODE
+                LDA          #TC4                      ;SAY 'READING ADDRESS'
+                STA          TL4
+                LDA          #SP                       ;SAY 'NO ADDRESS ERROR' (YET)
+                STA          TL6
+                FIN
+                LST          ON
+                JSR          RDADR16                   ;READ NEXT ADDRESS FIELD
+                LST          OFF
+                DO           DIAGMODE
+                LDA          #SP                       ;ADDRESS-READ DONE
+                STA          TL4
+                FIN
+                LST          ON
+                BCC          RDRIGHT                   ;IF READ IT RIGHT, HURRAH!
+                LST          OFF
+                DO           DIAGMODE
+                LDA          #TC6                      ;SAY 'ADDRESS ERROR'
+                STA          TL6
+                FIN
+                LST          ON
+TRYADR2         DEC          RETRYCNT                  ;ANOTHER MISTAEK!!
+                BPL          TRYADR                    ; WELL, LET IT GO THIS TIME.,
+*
+* RRRRRECALIBRATE !!!!
+*
+RECAL           EQU          *
+                LDA          CURTRK
+                PHA                                    ;SAVE TRACK WE REALLY WANT
+                LDA          #$60                      ;RECALIBRATE ALL OVER AGAIN!
+                JSR          SETTRK                    ;PRETEND TO BE ON TRACK 96
+                DEC          RECALCNT                  ;ONCE TOO MANY??
+                BEQ          DRVERR                    ;TRIED TO RECALIBRATE TOO MANY TIMES, ERROR!
+                LDA          #MAXSEEKS                 ;RESET THE
+                STA          SEEKCNT                   ; SEEK COUNTER
+                LDA          #$00
+                JSR          MYSEEK                    ;MOVE TO TRACK 00
+                PLA
+RESEEK          JSR          MYSEEK                    ;GO TO CORRECT TRACK THIS TIME!
+                JMP          TRYTRK2                   ;LOOP BACK, TRY AGAIN ON THIS TRACK
+*
+* HAVE NOW READ AN ADDRESS FIELD CORRECTLY.
+* MAKE SURE THIS IS THE TRACK, SECTOR, AND VOLUME DESIRED.
+*
+RDRIGHT         LDY          TRACK                     ;ON THE RIGHT TRACK?
+                CPY          CURTRK
+                BEQ          RTTRK                     ;IF SO, GOOD
+* NO, DRIVE WAS ON A DIFFERENT TRACK. TRY
+* RESEEKING/RECALIBRATING FROM THIS TRACK
+                LDA          CURTRK                    ;PRESERVE DESTINATION TRACK
+                PHA
+                TYA
+                JSR          SETTRK
+                PLA
+                DEC          SEEKCNT                   ;SHOULD WE RESEEK?
+                BNE          RESEEK                    ;=>YES, RESEEK
+                BEQ          RECAL                     ;=>NO, RECALIBRATE!
+***
+DRVERR          PLA                                    ;REMOVE CURTRK.
+                LDA          #IBDERR                   ;BAD DRIVE ERROR
+JMPTO1          PLP
+                JMP          HNDLERR
+GALLDONE        BEQ          ALLDONE
+FORMDSK         JMP          DSKFORM                   ;=>GO TO IT!
+*
+* DRIVE IS ON RIGHT TRACK, CHECK VOLUME MISMATCH
+*
+RTTRK           LDY          #3                        ;IS THE RIGHT DISK IN?
+                LDA          (IOBPL),Y                 ;GET DESIRED VOLUM
+                PHA                                    ;PRESERVE DESIRED VOLUME#
+                LDA          VOLUME                    ;GET ACTUAL VOLUME HERE
+                LDY          #$0E                      ;TELL OPSYS WHAT VOLUME WAS THERE
+                STA          (IOBPL),Y
+                PLA                                    ;GET DESIRED VOLUME BACK
+                BEQ          CORRECTVOL                ;DESIRED VOLUME 00 MATCHES ALL.
+                CMP          VOLUME
+                BEQ          CORRECTVOL                ;YUP, IT WAS RIGHT
+                LDA          #IBVMME                   ;HE SWITCHED DISCS!
+                BNE          JMPTO1                    ;ALWAYS TAKEN
+CORRECTVOL      EQU          *
+                LDY          #5                        ; TO ALLOW FOR INTERLEAVE
+                LDA          (IOBPL),Y                 ;GET REQUESTED (LOGICAL) SECTOR
+                TAY                                    ;MOVE TO INDEX REG
+                LDA          INTRLEAV,Y                ;COMPUTE PHYSICAL SECTOR
+                CMP          SECT                      ;DID WE GET THE SECTOR?
+                LST          OFF
+                DO           DIAGMODE
+                BEQ          GOTSECT                   ;=>WE FOUND IT!
+                LDA          #TC5                      ;SAY 'LATENCY'
+                STA          TL5
+                LDA          SCOUNT                    ;ARE WE WAITING FOR FIRST SECTOR?
+                BEQ          NOLAT                     ;=>YES. LATENCY UNPREDICTABLE ANYWAY
+                INC          LCOUNT                    ;NO, COUNT SECTORS MISSED
+NOLAT           EQU          *
+                JMP          TRYADR2                   ;NOW..GET CORRECT SECTOR..
+                ELSE
+                LST          ON
+                BNE          TRYADR2                   ;NO, KEEP TRYING.
+                FIN
+*
+* HOORAY! WE GOT THE RIGHT SECTOR!
+*
+GOTSECT         EQU          *
+                LST          OFF
+                DO           DIAGMODE
+                LDA          #SP                       ;SAY 'NO LATENCY'
+                STA          TL5
+                INC          SCOUNT                    ;BUMP 'SECTORS-ACCESSED' COUNT
+                FIN
+                LST          ON
+                PLP
+                BCC          WRIT                      ;CARRY WAS SET FOR READ OPERATION,
+                LST          OFF
+                DO           DIAGMODE
+                LDA          #TC9                      ;SAY 'READING'
+                STA          TL9
+                LDA          #SP                       ;SAY 'NO READ ERROR' (YET)
+                STA          TL10
+                FIN
+                LST          ON
+                JSR          READ16                    ;CLEARED FOR WRITE
+                LST          OFF
+                DO           DIAGMODE
+                LDA          #SP                       ;READ FINISHED
+                STA          TL9
+                FIN
+                LST          ON
+                PHP                                    ;SAVE STATUS OF READ OPERATION
+                LST          OFF
+                DO           DIAGMODE
+                BCC          GOODREAD                  ;NO ERROR
+                LDA          #TC10                     ;SAY 'READ ERROR'
+                STA          TL10
+                JMP          TRYADR2                   ;RETRY ON ERROR
+*
+GOODREAD        EQU          *
+                ELSE
+                LST          ON
+                BCS          TRYADR2                   ;CARRY SET UPON RETURN IF BAD READ
+                FIN
+                PLP                                    ;CAREFUL OF STACK
+                LDX          #0                        ;SET TO POSTNIBLIZE
+                STX          T0                        ; ALL 256 BYTES OF THE SECTOR
+                LST          OFF
+                DO           DIAGMODE
+                LDA          #TC11                     ;SAY 'POSTINIBBLIZING'
+                STA          TL11
+                FIN
+                LST          ON
+                JSR          POSTNB16                  ;DECODE INTO REAL WORLD DATA
+                LST          OFF
+                DO           DIAGMODE
+                LDA          #SP                       ;POSTNIB COMPLETED
+                STA          TL11
+                FIN
+                LST          ON
+                LDX          SLOT                      ;RESTORE SLOTNUM INTO X
+ALLDONE         CLC
+                DFB          $24                       ;SKIP OVER NEXT BYTE WITH BIT OPCODE
+HNDLERR         SEC                                    ;INDICATE AN ERROR
+                LDY          #$0D                      ;GIVE HIM ERROR#
+                STA          (IOBPL),Y
+                LDA          MOTOROFF,X                ;TURN IT OFF...
+                LST          OFF
+                DO           DIAGMODE
+* AVERAGE LATENCY = LCOUNT/SCOUNT
+                LDA          LCOUNT                    ;GET TOTAL LATENCY
+                LDY          #0                        ;CLEAR QUOTIENT
+DIVIDE          EQU          *
+                CMP          SCOUNT                    ;DONE?
+                BCC          PRTLAT                    ;=>YES.PRINT IT
+                SBC          SCOUNT                    ;REMOVE SCOUNT
+                INY                                    ;INCREMENT QUOTIENT
+                BNE          DIVIDE
+*
+PRTLAT          TYA
+                AND          #$0F                      ;MAX LATENCY=15
+                ORA          #$B0                      ;MAKE ASCII
+                CMP          #$BA                      ;IS IT A-F?
+                BCC          PRTL2                     ;=>NO
+                ADC          #6                        ;ADD 7 (INCLUDES CARRY)
+PRTL2           STA          TL12                      ;STUFF LATENCY COUNT
+                LDA          #SP                       ;SAY 'RWTS NOT ACTIVE'
+                STA          TL1
+                FIN
+                LST          ON
+                RTS
+WRIT            EQU          *
+                LST          OFF
+                DO           DIAGMODE
+                LDA          #TC8                      ;SAY 'WRITING'
+                STA          TL8
+                FIN
+                LST          ON
+                JSR          WRITE16                   ;WRITE NYBBLES NOW
+                LST          OFF
+                DO           DIAGMODE
+                LDA          #SP                       ;WRITE FINISHED
+                STA          TL8
+                FIN
+                LST          ON
+                BCC          ALLDONE                   ;IF NO ERRORS.
+                LDA          #IBWPER                   ;DISK IS WRITE PROTECTED!!
+                BCS          HNDLERR                   ;ALWAYS TAKEN
+*
+* THIS IS THE 'SEEK' ROUTINE
+*  SEEKS TRACK 'N' IN SLOT #X/$10
+* IF DRIVNO IS NEGATIVE, ON DRIVE 1
+* IF DRIVNO IS POSITIVE, ON DRIVE 2
+*
+MYSEEK          PHA                                    ;AND PRESERVE A-REGISTER
+                LST          OFF
+                DO           DIAGMODE
+                LDA          #TC3                      ;SAY 'SEEKING'
+                STA          TL3
+                FIN
+                LST          ON
+                LDY          #$01                      ;IS THIS A TWO-PHASE DISC?
+                LDA          (DEVCTBL),Y
+                ROR          A                         ;GET # OF PHASES INTO CARRY
+                PLA
+                BCC          MYSEEK2                   ;IF ONE PHASE PER TRACK
+                ASL          A
+                JSR          MYSEEK2
+                LSR          CURTRK                    ;DIVIDE BACK DOWN
+                LST          OFF
+                DO           DIAGMODE
+                LDA          #SP
+                STA          TL3                       ;SEEK DONE
+                FIN
+                LST          ON
+                RTS
+MYSEEK2         STA          TRKN                      ;SAVE DESTINATION TRACK(*2)
+                JSR          XTOY                      ;SET Y=SLOT#
+                LDA          DRV1TRK,Y
+                BIT          DRIVNO
+                BMI          WASD0                     ;IS MINUS, ON DRIVE ZERO
+                LDA          DRV2TRK,Y
+WASD0           STA          CURTRK                    ;THIS IS WHERE I AM
+                LDA          TRKN                      ;AND WHERE I'M GOING TO
+                BIT          DRIVNO                    ;NOW UPDATE SLOT DEPENDENT
+                BMI          ISDRV1                    ;LOCATIONS WITH TRACK
+                STA          DRV2TRK,Y                 ;INFORMATION
+                BPL          GOSEEK                    ;ALWAYS TAKEN
+ISDRV1          STA          DRV1TRK,Y
+GOSEEK          JMP          SEEK                      ;GO THERE!
+XTOY            TXA
+                LSR          A
+                LSR          A
+                LSR          A
+                LSR          A
+                TAY
+                RTS
+*
+* THIS SUBROUTINE SETS THE SLOT DEPENDENT TRACK
+* LOCATION.
+*
+SETTRK          PHA                                    ;PRESERVE DESTINATION TRACK
+                LDY          #$02
+                LDA          (IOBPL),Y
+                ROR          A                         ;GET DRIVE # INTO CARRY
+                ROR          DRIVNO                    ;INTO (DRIVNO)
+                JSR          XTOY                      ;SET UP Y-REG
+                PLA
+                ASL          A                         ;ASSUME TRACK IS HELD *2
+SETTRK2         BIT          DRIVNO
+                BMI          ONDRV1                    ;IF ON DRIVE 1(1), DRIVNO MINUS
+                STA          DRV2TRK,Y
+                BPL          SETRTS
+ONDRV1          STA          DRV1TRK,Y
+SETRTS          RTS
+
+; ####################################################################################################
+; #   END OF FILE:  RWTSTWO
+; #   LINES      :  302
+; #   CHARACTERS :  14425
+; #   Formatter  :  Assembly Language Reformatter 1.0.2 (07 January 1998)
+; ####################################################################################################

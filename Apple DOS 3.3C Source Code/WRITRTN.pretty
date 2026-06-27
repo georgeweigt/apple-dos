@@ -1,0 +1,140 @@
+; ####################################################################################################
+; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
+; #   FILE NAME:  WRITRTN
+; ####################################################################################################
+
+                SBTL         '16-SECTOR WRITE'
+************************
+*                      *
+*      WRITE SUBR      *
+*  (16-SECTOR FORMAT)  *
+*                      *
+************************
+*                      *
+*   WRITES DATA FROM   *
+*    NBUF1 AND NBUF2   *
+*   CONVERTING 6-BIT   *
+*    TO 7-BIT NIBLS    *
+*   VIA 'NIBL' TABLE.  *
+*                      *
+*  FIRST NBUF2,        *
+*      HIGH TO LOW.    *
+*  THEN NBUF1,         *
+*      LOW TO HIGH.    *
+*                      *
+*  ---- ON ENTRY ----  *
+*                      *
+*   X-REG: SLOTNUM     *
+*        TIMES $10.    *
+*                      *
+*   NBUF1 AND NBUF2    *
+*    HOLD NIBLS FROM   *
+*    PRENIBL SUBR.     *
+*    (00ABCDEF)        *
+*                      *
+*  ---- ON EXIT -----  *
+*                      *
+*  CARRY SET IF ERROR. *
+*   (W PROT VIOLATION) *
+*                      *
+*  IF NO ERROR:        *
+*                      *
+*    A-REG UNCERTAIN.  *
+*    X-REG UNCHANGED.  *
+*    Y-REG HOLDS $00.  *
+*    CARRY CLEAR.      *
+*                      *
+*    SLOTABS, SLOTZ,   *
+*     AND WTEMP USED.  *
+*                      *
+*  ---- ASSUMES ----   *
+*                      *
+*  1 USEC CYCLE TIME   *
+*                      *
+************************
+WRITE16         SEC          ANTICIPATE                WPROT ERR.
+                STX          SLOTZ                     FOR ZERO PAGE ACCESS.
+                STX          SLOTABS                   FOR NON-ZERO PAGE.
+                LDA          Q6H,X
+                LDA          Q7L,X                     SENSE WPROT FLAG.
+                BMI          WEXIT                     IF HIGH, THEN ERR.
+                LDA          NBUF2
+                STA          WTEMP                     FOR ZERO-PAGE ACCESS.
+                LDA          #$FF                      SYNC DATA.
+                STA          Q7H,X                     (5)  WRITE 1ST NIBL.
+                ORA          Q6L,X                     (4)
+                PHA          (3)
+                PLA          (4)                       CRITICAL TIMING!
+                NOP          (2)
+                LDY          #4                        (2)  FOR 5 NIBLS.
+WSYNC           PHA          (3)                       EXACT TIMING.
+                PLA          (4)                       EXACT TIMING.
+                JSR          WNIBL7                    (13,9,6)  WRITE SYNC.
+                DEY          (2)
+                BNE          WSYNC                     (2*)  MUST NOT CROSS PAGE!
+                LDA          #$D5                      (2)  1ST DATA MARK.
+                JSR          WNIBL9                    (15,9,6)
+                LDA          #$AA                      (2)  2ND DATA MARK.
+                JSR          WNIBL9                    (15,9,6)
+                LDA          #$AD                      (2)  3RD DATA MARK.
+                JSR          WNIBL9                    (15,9,6)
+                TYA          (2)                       CLEAR CHKSUM.
+                LDY          #$56                      (2)  NBUF2 INDEX.
+                BNE          WDATA1                    (3)  ALWAYS.  NO PAGE CROSS!!
+WDATA0          LDA          NBUF2,Y                   (4)  PRIOR 6-BIT NIBL.
+WDATA1          EOR          NBUF2-1,Y                 (5)  XOR WITH CURRENT.
+*   (NBUF2 MUST BE ON PAGE BOUNDARY FOR TIMING!!)
+                TAX          (2)                       INDEX TO 7-BIT NIBL.
+                LDA          NIBL,X                    (4)  MUST NOT CROSS PAGE!
+                LDX          SLOTZ                     (3)  CRITICAL TIMING!
+                STA          Q6H,X                     (5)  WRITE NIBL.
+                LDA          Q6L,X                     (4)
+                DEY          (2)                       NEXT NIBL.
+                BNE          WDATA0                    (2*)  MUST NOT CROSS PAGE!
+                LDA          WTEMP                     (3)  PRIOR NIBL FROM BUF6.
+                NOP          (2)                       CRITICAL TIMING.
+WDATA2          EOR          NBUF1,Y                   (4)  XOR NBUF1 NIBL.
+                TAX          (2)                       INDEX TO 7-BIT NIBL.
+                LDA          NIBL,X                    (4)
+                LDX          SLOTABS                   (4)  TIMING CRITICAL.
+                STA          Q6H,X                     (5)  WRITE NIBL.
+                LDA          Q6L,X                     (4)
+                LDA          NBUF1,Y                   (4)  PRIOR 6-BIT NIBL.
+                INY          (2)                       NEXT NBUF1 NIBL.
+                BNE          WDATA2                    (2*)  MUST NOT CROSS PAGE!
+                TAX          (2)                       LAST NIBL AS CHKSUM.
+                LDA          NIBL,X                    (4)  INDEX TO 7-BIT NIBL.
+                LDX          SLOTZ                     (3)
+                JSR          WNIBL                     (6,9,6)  WRITE CHKSUM.
+                LDA          #$DE                      (2)  DM4, BIT SLIP MARK.
+                JSR          WNIBL9                    (15,9,6)    WRITE IT.
+                LDA          #$AA                      (2)  DM5, BIT SLIP MARK.
+                JSR          WNIBL9                    (15,9,6)    WRITE IT.
+                LDA          #$EB                      (2)  DM6, BIT SLIP MARK.
+                JSR          WNIBL9                    (15,9,6)    WRITE IT.
+                LDA          #$FF                      (2) TURN-OFF BYTE.
+                JSR          WNIBL9                    (15,9,9)  WRITE IT.
+                LDA          Q7L,X                     OUT OF WRITE MODE.
+WEXIT           LDA          Q6L,X                     TO READ MODE.
+                RTS          RETURN                    FROM WRITE.
+*****************************
+*                           *
+*   7-BIT NIBL WRITE SUBRS  *
+*                           *
+*   A-REG OR'D PRIOR EXIT   *
+*       CARRY CLEARED       *
+*                           *
+*****************************
+WNIBL9          CLC          (2)                       9 CYCLES, THEN WRITE.
+WNIBL7          PHA          (3)                       7 CYCLES, THEN WRITE.
+                PLA          (4)
+WNIBL           STA          Q6H,X                     (5)  NIBL WRITE SUB.
+                ORA          Q6L,X                     (4)  CLOBBERS ACC, NOT CARRY.
+                RTS
+
+; ####################################################################################################
+; #   END OF FILE:  WRITRTN
+; #   LINES      :  128
+; #   CHARACTERS :  6272
+; #   Formatter  :  Assembly Language Reformatter 1.0.2 (07 January 1998)
+; ####################################################################################################

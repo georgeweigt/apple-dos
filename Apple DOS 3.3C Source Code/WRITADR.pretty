@@ -1,0 +1,135 @@
+; ####################################################################################################
+; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
+; #   FILE NAME:  WRITADR
+; ####################################################################################################
+
+                SBTL         '16-SECTOR WRITE ADDRESS'
+********************************
+*                              *
+*  WRITE ADR FIELD SUBROUTINE  *
+*      (16-SECTOR FORMAT)      *
+*  WRITES SPECIFIED NUMBER OF  *
+*  40-USEC (10-BIT) SELF-SYNC  *
+*  NIBLS, ADR FIELDS 16-SECTOR *
+*  START MARKS ($D5,$AA,$96),  *
+*  BODY (VOLUME, TRACK, SECTOR,*
+*  CHECKSUM), END FIELD MARKS, *
+*  AND THE WRITE TURN-OFF NIBL.*
+*                              *
+********************************
+*                              *
+*   ------- ON ENTRY -------   *
+*                              *
+*  THE LOCATIONS VOLUME, TRK,  *
+*  AND NSECT MUST CONTAIN THE  *
+*  DESIRED VOLUME, TRACK, AND  *
+*  SECTOR VALUES DESIRED.      *
+*                              *
+*  THE PROPER DRIVE MUST BE    *
+*  ENABLED AND UP TO SPEED IN  *
+*  READ MODE (Q7L, Q6L).       *
+*                              *
+*  X-REG CONTAINS SLOTNUM      *
+*                    TIMES 16. *
+*                              *
+*  Y-REG CONTAINS NUMBER OF    *
+*    SELF-SYNC NIBLS DESIRED   *
+*    MINUS 1.                  *
+*      (0 FOR 256 NIBLS)       *
+*                              *
+********************************
+*                              *
+*   ------- REQUIRES -------   *
+*                              *
+*         1 USEC CYCLE         *
+*                              *
+********************************
+*                              *
+*   ------- CAUTION --------   *
+*                              *
+*  MOST OF THIS CODE IS TIME   *
+*  CRITICAL.  OBSERVE ALL      *
+*  'NO PAGE CROSS!' WARNINGS   *
+*  ON BRANCHES.                *
+*                              *
+********************************
+SWADR1          EQU          *                         ;TELL RELOCATOR WHERE TO BEGIN
+*******************************
+WADR16          SEC          ANTICIPATE                WR PROT ERR.
+                LDA          Q6H,X                     INTO 'WR PROT SENSE' MODE.
+                LDA          Q7L,X                     SENSE IT (NEG=PROTECTED)
+                BMI          WADRTS                    ERR EXIT IF PROTECTED.
+                LDA          #$FF                      SELF-SYNC NIBL.
+                STA          Q7H,X                     WRITE FIRST NIBL.
+                CMP          Q6L,X                     (4) BACK TO WRITE MODE.
+                PHA          (3)                       FOR DELAY.
+                PLA          (4)
+WSYNC1          JSR          WADRTS1                   (12) FOR 40-USEC NIBLS.
+                JSR          WADRTS1                   (12)
+                STA          Q6H,X                     (5) WRITE NIBL.
+                CMP          Q6L,X                     (4) (BACK TO WRITE MODE)
+                NOP          (2)                       FOR DELAY.
+                DEY          (2)                       NEXT OF 'N' NIBLS.
+                BNE          WSYNC1                    (3) *** NO PAGE CROSS! ***
+                LDA          #$D5                      (2) ADR MARK 1.
+                JSR          WNIBLB2                   (15,9,6) WRITE IT.
+                LDA          #$AA                      (2) ADR MARK 2.
+                JSR          WNIBLB2                   (15,9,6) WRITE IT.
+                LDA          #$96                      (2) 16-SECTOR ADR MARK 3.
+                JSR          WNIBLB2                   (15,9,6) WRITE IT.
+                LDA          NVOL                      (3)
+                JSR          WBYTE                     (14,9,6) WRITE NVOL (ODD, THEN EVEN, BITS.)
+                LDA          TRK                       (3) WRITE TRACK NUMBER.
+                JSR          WBYTE                     (14,9,6) ODD, THEN EVEN, BITS)
+                LDA          NSECT                     (3) WRITE SECTOR NUMBER.
+                JSR          WBYTE                     (14,9,6) (ODD, THEN EVEN, BITS)
+                LDA          NVOL                      (3)
+                EOR          TRK                       (3) FORM ADR FIELD CHECKSUM.
+                EOR          NSECT                     (3)
+                PHA          (3)                       SAVE FOR EVEN BITS.
+                LSR          A                         (2) ALIGHN ODD BITS.
+                ORA          AA                        (3) SET CLOCK BITS.
+*    (PRECISE TIMING, 32 CYCLES PER NIBL)
+                STA          Q6H,X                     (5) WRITE CHECKSUM ODD BITS.
+                LDA          Q6L,X                     (4) BACK TO WRITE MODE.
+                PLA          (4)                       RECOVER FOR EVEN BITS.
+                ORA          #$AA                      (2) SET CLOCK BITS.
+                JSR          WNIBLA                    (17,9,6) WRITE THEM.
+                LDA          #$DE                      (2) END MARK 1.
+                JSR          WNIBLB2                   (15,9,6) WRITE IT.
+                LDA          #$AA                      (2) END MARK 2.
+                JSR          WNIBLB2                   (15,9,6) WRITE IT.
+                LDA          #$EB                      (2) END MARK 3.
+                JSR          WNIBLB2                   (15,9,6) 'WRITE TURN-OFF'
+                CLC          INDICATE                  NO WR PROT ERR.
+WADRTS          LDA          Q7L,X                     OUT OF WRITE MODE.
+                LDA          Q6L,X                     TO READ MODE.
+WADRTS1         RTS          RETURN
+WBYTE           PHA          (3)                       PRESERVE FOR EVEN BITS.
+                LSR          A                         (2) ALIGN ODD BITS.
+                ORA          AA                        (3) SET CLOCK BITS.
+                STA          Q6H,X                     (5) WRITE NIBL.
+                CMP          Q6L,X                     (4)
+                PLA          (4)                       RECOVER FOR EVEN BITS.
+                NOP          (2)
+                NOP          (2)                       FOR DELAY.
+                NOP          (2)
+                ORA          #$AA                      (2) SET CLOCK BITS.
+WNIBLA          NOP          (2)                       (17,9,6) ENTRY.
+WNIBLB2         NOP          (2)                       (15,9,6) ENTRY.
+                PHA          (3)                       FOR
+                PLA          (4)                       DELAY.
+WRNIBL          STA          Q6H,X                     (5) WRITE NIBL.
+                CMP          Q6L,X                     (4)
+                RTS          (6)                       RETURN.
+EWADR1          EQU          *                         ;TELL RELOCTR WHERE TO STOP
+XP2             EQU          <*+255                    ;H.O. ADDRESS NEXT PAGE
+XP2H            EQU          256*XP2                   ;NOW AS 16-BITS
+                DS           XP2H-*,0                  ;PAD OUT TO PAGE BOUNDARY..
+
+; ####################################################################################################
+; #   END OF FILE:  WRITADR
+; #   LINES      :  123
+; #   CHARACTERS :  6714
+; #   Formatter  :  Assembly Language Reformatter 1.0.2 (07 January 1998)
+; ####################################################################################################

@@ -1,0 +1,302 @@
+; ####################################################################################################
+; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
+; #   FILE NAME:  XOPNCLS
+; ####################################################################################################
+
+                PAGE
+;
+; GNXTC - GET NEXT CHAR
+;
+GNXTC           EQU          *
+                LDX          LBUFD
+                LDA          LBUFF,X                   ; GET NEXT CHAR AND IF
+                CMP          #$8D                      ; IT IS A CR
+                BEQ          GNXTCR                    ; THEN RETURN WITHOUT
+                INX                                    ; INCR TO NEXT CHAR
+                STX          LBUFD
+                CMP          #','+$80                  ; TEST FOR COMMA
+GNXTCR          RTS
+;
+; GNBC - GET NON BLANK CHAR
+;
+GNBC            EQU          *
+                JSR          GNXTC                     ; GO GET NEXT CHAR
+                BEQ          GNXTCR                    ; BR IF COMMA OR CR
+                CMP          #$A0                      ; IS IT BLANK
+                BEQ          GNBC                      ; BR IF BLANK
+                RTS                                    ; DONE
+;
+; CLRCCB - CLEAR CCB
+;
+CLRCCB          EQU          *
+                LDA          #0
+                LDY          #CCBLEN                   ; CCBLENGTH
+CLC1            STA          CCB-1,Y                   ; CLEAR BYTE
+                DEY
+                BNE          CLC1
+                RTS
+                PAGE
+;
+; GETNUM - CONVERT ASCII INPUT TO NUMERIC
+;
+GETNUM          EQU          *
+                LDA          #0                        ; CLEAR WORK AREA
+                STA          CNUM
+                STA          CNUM+1
+                JSR          GNBC
+                PHP
+                CMP          #$A4
+                BEQ          HEXNUM
+                PLP
+                JMP          GN2A
+;
+GN2             JSR          GNBC                      ; GET NEXT NON BLANK
+GN2A            EQU          *
+                BNE          GN3                       ; BR NOT COMMA OR CR
+                LDX          CNUM                      ; X=RESULT LOW
+                LDA          CNUM+1                    ; Y=RESULT HI
+                CLC
+                RTS                                    ; DONE
+;
+GN3             SEC
+                SBC          #$B0                      ; SUBTRACT ASCII 0
+                BMI          GN4                       ; BR IF NOT NUM
+                CMP          #10
+                BCS          GN4                       ; BR IF NOT NUM
+                JSR          GN5                       ; OLD*2
+                ADC          CNUM                      ; PLUS NEW
+                TAX
+                LDA          #0
+                ADC          CNUM+1
+                TAY
+                JSR          GN5                       ; OLD*4
+                JSR          GN5                       ; OLD*8
+                TXA                                    ; OLD*8 + OLD*2 + NEW
+                ADC          CNUM
+                STA          CNUM                      ; =OLD*10 + NEW
+                TYA
+                ADC          CNUM+1
+                STA          CNUM+1
+                BCC          GN2
+;
+GN4             EQU          *
+                SEC
+                RTS                                    ; DONE
+GN5             EQU          *
+                ASL          CNUM                      ; CNUM * 2
+                ROL          CNUM+1
+                RTS
+                PAGE
+;
+HEXNUM          EQU          *
+                PLP
+HN0             EQU          *
+                JSR          GNBC                      ; GO GET CHAR
+                BEQ          GN2A                      ; BR IF CR OR COMMA
+;
+                SEC
+                SBC          #$B0                      ; CHAR - ASCII0
+                BMI          GN4                       ; BR IF LT0
+                CMP          #10                       ; IS IT LT10
+                BCC          HN1                       ; BR IF LT
+                SBC          #$7                       ; SUB 7 FOR ASCII A
+                BMI          GN4                       ; BR IF LT A
+                CMP          #16                       ; TEST GT 15
+                BCS          GN4                       ; BR GT 15
+HN1             LDX          #4
+HN2             JSR          GN5                       ; OLD*16
+                DEX                                    ;LOOP 4 TIMES ONLY
+                BNE          HN2
+                ORA          CNUM                      ; OR IN NEW
+                STA          CNUM                      ; SAVE NEW
+                JMP          HN0                       ; GO FOR NEXT CHAR
+                PAGE
+;
+; EPR - EXECUTE PR#
+;
+EPR             EQU          *
+                LDA          CNUM                      ; GET PORT
+                JMP          OUTPRT                    ; GO DO IT
+;
+; EIN - EXECUTE IN#
+;
+EIN             EQU          *
+                LDA          CNUM                      ; GET PORT
+                JMP          INPRT                     ; GO DO IT
+;
+; EMON - EXECUTE MONITOR CMD
+;
+EMON            EQU          *
+                LDA          MONMOD                    ; GET CURRENT BITS
+                ORA          IMBITS                    ; OR IN NEW BITS
+                STA          MONMOD                    ; SET NEW MODE
+                RTS
+;
+; ENONON - EXECUTE NO MONITOR CMD
+;
+ENOMON          EQU          *
+                BIT          IMBITS
+                BVC          ENM1
+                JSR          PRCRIF
+ENM1            EQU          *
+                LDA          #$70
+                EOR          IMBITS                    ; INVERT INPUT BITS
+                AND          MONMOD                    ; AND WITH CURRENT
+                STA          MONMOD                    ; SET NEW MODE
+                RTS
+                PAGE
+;
+; EMAXF - EXECUTE MAX FILES
+;
+EMAXF           EQU          *
+                LDA          #0                        ; RESET EXECUTE
+                STA          ESTATE
+                LDA          CNUM                      ; SAVE NEW NO FILES
+                PHA
+                JSR          CLALL                     ; GO CLOSE ALL FILES
+                PLA
+                STA          CNFTBS                    ; SET NEW NO FILE TBLS
+                JMP          BLDFTB                    ; GO BUILD NEW ONES
+;
+; EDEL - DELETE A FILE
+;
+EDEL            EQU          *
+                LDA          #CRQDEL                   ; DELETE REQUEST
+                JSR          OPEN                      ; GO OPEN
+                JSR          FILSRC                    ; FIND FILE
+                LDY          #0
+                TYA
+                STA          (ZPGWRK),Y                ; RESET FN
+                RTS
+;
+; ELOCK - LOCK A FILE
+;
+ELOCK           EQU          *
+                LDA          #CRQLCK                   ; SET LOCK
+                BNE          ELGO
+;
+; EUNLK - UNLOCK A FILE
+;
+EUNLK           EQU          *
+                LDA          #CRQUNL                   ; SET UNLOCK
+ELGO            EQU          *
+                JSR          OPEN                      ; OPEN FILE & UNLOCK
+                JMP          ECLOSE                    ; CLOSE IT
+;
+; EVAR - VERIFY A FILE
+;
+EVAR            EQU          *
+                LDA          #CRQVAR                   ; SET VARIFY
+                BNE          ELGO
+                PAGE
+;
+; EREN - RENAME A FILE
+;
+EREN            EQU          *
+                LDA          FN2ADR                    ; MOVE FILE NAME2
+                STA          CCBFN2
+                LDA          FN2ADR+1
+                STA          CCBFN2+1
+                LDA          #CRQRNM
+                STA          TEMP1A                    ; SET RENAME
+                JSR          EO3                       ; GO OPEN AND RENAME
+                JMP          ECLOSE                    ; GO CLOSE
+;
+; EAPND - OPEN FILE FOR APPEND
+;
+EAPND           EQU          *
+                JSR          EOPEN                     ; GO OPEN
+AP1             EQU          *
+                JSR          RBYTE                     ; READ A BYTE
+                BNE          AP1                       ; BR IF NOT ZERO
+;
+                JMP          BUMPER                    ; GO TO PATCH FOR APPEND FIX
+                PAGE
+;
+; EOPEN - OPEN A FILE
+;
+EOPEN           LDA          #0                        ;FIX TYPE MISMATCH DETECTION
+                JMP          SV1                       ;(CALLS EOPN1)
+EOPN1           LDA          #CRQOPN
+OPEN            EQU          *
+                STA          TEMP1A
+                LDA          CL                        ; IF NO LENGTH ENTERED
+                BNE          EO1                       ; THEN SET DEFAULT OF 1
+                LDA          CL+1
+                BNE          EO1
+                LDA          #1
+                STA          CL
+EO1             EQU          *
+                LDA          CL                        ; MOVE REC LENGTH
+                STA          CCBRLN
+                LDA          CL+1
+                STA          CCBRLN+1
+EO3             EQU          *
+                JSR          ECLOSE                    ; GO CLOSE IF OPEN
+EO4             EQU          *
+                LDA          CNUM+1                    ; GET AVALL ENTRY
+                BNE          EO5                       ; BR IF ONE AVAIL
+                JMP          ENFA                      ; DONE - NO FILES AVAIL
+EO5             EQU          *
+                STA          ZPGWRK+1                  ; MOVE AVAIL SLOT TO ZPG
+                LDA          CNUM
+                STA          ZPGWRK
+EO6             EQU          *
+                JSR          MVFN1                     ; GO MOVE FILE NAME
+                JSR          MVBUFP                    ; GO MOVE BUF PTRS
+                JSR          OPNSUP                    ; GO SET UP OPEN
+                LDA          TEMP1A                    ; SET OPEN REQ
+                STA          CCBREQ
+                JMP          DOSGO                     ; GO OPEN
+                PAGE
+;
+; ECLOSE - EXECUTE CLOSE FILE COMMAND
+;
+ECLOSE          EQU          *
+                LDA          FNAME1
+                CMP          #$A0
+                BEQ          CLALL
+                JSR          FILSRC                    ; GO FIND FILE
+                BCS          CL2                       ; BR IF NOT FOUND
+                JSR          CLOSE                     ; GO CLOSE
+                JMP          ECLOSE                    ; GO SEE IF ANY MORE OPEN
+;
+; CLOSE - CLOSE A FILE
+;
+CLOSE           EQU          *
+                JSR          TSTEXC
+                BNE          CLX
+                LDA          #0
+                STA          ESTATE
+CLX             EQU          *
+                LDY          #0                        ; CLEAR 1ST FN
+                TYA                                    ; CHAR TO ZERO
+                STA          (ZPGWRK),Y
+                JSR          MVBUFP                    ; MOVE BUFFER PTRS
+                LDA          #CRQCLS                   ; SET CLOSE
+                STA          CCBREQ
+                JMP          DOSGO                     ; GO CLOSE
+;
+; CLALL - CLOSE ALL FILES
+;
+CLALL           EQU          *
+                JSR          TSINIT                    ; GO INIT FILE SEARCH
+                BNE          CL1
+CL0             EQU          *
+                JSR          TSNXT                     ; NEXT ENTRY
+                BEQ          CL2                       ; BR IF NO MORE
+CL1             EQU          *
+                JSR          TSTEXC
+                BEQ          CL0
+                JSR          TSTOPN                    ; GO TEST OPEN
+                BEQ          CL0                       ; BR NOT OPEN
+                JSR          CLOSE                     ; GO CLOSE
+                JMP          CLALL                     ; START OVER
+CL2             RTS                                    ; DONE
+
+; ####################################################################################################
+; #   END OF FILE:  XOPNCLS
+; #   LINES      :  290
+; #   CHARACTERS :  11533
+; #   Formatter  :  Assembly Language Reformatter 1.0.2 (07 January 1998)
+; ####################################################################################################

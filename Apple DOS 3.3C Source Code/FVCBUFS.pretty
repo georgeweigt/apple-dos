@@ -1,0 +1,199 @@
+; ####################################################################################################
+; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
+; #   FILE NAME:  FVCBUFS
+; ####################################################################################################
+
+                PAGE
+;MISC DOS WORK CELLS
+;
+CVDTRK          DFB          0                         ; CUR VOL DIR TRK
+CVDSEC          DFB          0                         ; CUR VOL DIR SECTOR
+CURCCB          DFB          0,0                       ; CURRENT CCB ADR
+ENTSTK          DFB          0                         ; ENTRY STACK POINTER
+TEMP1           DFB          0                         ; TEMP BYTE1
+TEMP2           DFB          0                         ; TEMP BYTE 2
+TEMP3           DFB          0                         ; TEMP BYTE 3
+ENTSLT          DFB          0                         ; BOOT SLOT SAVED
+ALC10S          DFB          0,0,$FF,$FF               ; ALLOCATATION TRACK BIT MAP
+CVTAB           DFB          1,10,100                  ; CONVERSION TABLE
+                MSB          ON
+FTTAB           ASC          "TIAB" ; FILE TYPE CONVERSION TABLE"
+                ASC          "SRAB"
+VOLMES          ASC          " EMULOV KSID" ; "DISK VOLUME " BACKWARDS "
+                MSB          OFF
+VML             EQU          *-VOLMES-1
+                PAGE
+;VTOC RECORD AREA
+VTOC            EQU          *
+VDOST           DFB          4                         ; DOS TYPE
+VDIRTK          DFB          17                        ; COLUME DIRECTORY SECTOR
+VDIRSC          DFB          15                        ; VOLUME DIRECTORY SECTOR
+VDOSRN          DFB          4                         ; DOS RELEASE NUMBER
+                DFB          0                         ; SPARE
+                DFB          0                         ; SPARE
+VVOLNO          DFB          $FE                       ; VOLUME NUMBER
+                DS           32                        ; SPARE
+VTDMS           DFB          122                       ; MAX SECTORS IN A FILE DIR
+VSPARE          DS           8                         ; SPARES
+;
+VALCA1          DFB          17                        ; ALOCATION ALGORITHM BYTE 1
+VALCA2          DFB          1                         ; AA BYTE2
+VALCA3          DFB          0                         ; AA BYTE3
+VALCA4          DFB          0                         ; AA BYTE4
+VNOTRK          DFB          35                        ; NO TRACKS ON VOL
+VNOSEC          DFB          16                        ; NO SECTORS PER TRACK
+VSECLN          DW           256                       ; NO. BYTES PER SECTOR
+;
+VSECAL          EQU          *                         ; SECTOR ALLOCATION AREA
+;SECTORS ALLOCATED BY BIT MAP
+;4 BYTES OF BITS PER TRACK
+;LEFT MOST BIT REPRESENTS SECTOR N
+;WHERE N=NO SECTORS PER TRACK
+;
+;
+                PAGE
+                ORG          VTOC+256
+;
+;VOLUME DIRECTORY AREA
+;
+VOLDIR          EQU          *
+VDTCDE          DFB          2                         ; VOLUME DIRECTORY TYPE CODE
+VDLTRK          DS           1                         ; VD LINK TRACK
+VDLSEC          DS           1                         ; VD LINK SECTOR
+VDNF            DS           1                         ; VD NUMBER FILES THIS SECTOR
+VDSPAR          DS           7                         ; SPARES
+;
+VDFILE          EQU          *                         ; FILE ALLOCATION AREA (7 FILES)
+;EACH FILE:
+;FILE DIR TRK
+;FILE DIR SECTOR
+;FILE USE CODE
+;FILE NAME (30)
+;FILE SECTOR COUNT (2)
+                ORG          VOLDIR+256
+VDEND           EQU          *
+VDLEN           EQU          *-VOLDIR
+VDFLEN          EQU          *-VDFILE
+;
+                PAGE
+;
+;COMMAND CONTROL BLOCK (CCB)
+;
+CCB             EQU          *
+CCBREQ          DS           1                         ; USER REQUEST BYTE
+CRQNUL          EQU          0                         ; 0-NO REQUEST
+CRQOPN          EQU          1                         ; 1-OPEN FILE
+CRQCLS          EQU          2                         ; 2-CLOSE FILE
+CRQRD           EQU          3                         ; 3-READ DATA
+CRQWR           EQU          4                         ; WRITE DATA
+CRQDEL          EQU          5                         ; 5-DELETE FILE
+CRQDIR          EQU          6                         ; 6-READ DIRECTORY
+CRQLCK          EQU          7                         ; 7-LOCK FILE
+CRQUNL          EQU          8                         ; 8-UNLOCK FILE
+CRQRNM          EQU          9                         ; 9-RENAME
+CRQPOS          EQU          10                        ; 10-POSITION FILE
+CRQFMT          EQU          11                        ; 11-FORMAT
+CRQVAR          EQU          12                        ; 12 - VERIFY
+CRQMAX          EQU          13
+;
+CCBBSA          EQU          *                         ; FORMAT - BOOT START ADR PAGE
+CCBRQM          DS           1                         ; RREQUEST MODIFIER BYTE
+CRMNUL          EQU          0                         ; NO MODIFIER
+CRMNBT          EQU          1                         ; R/W - 1 - NEXT BYTE
+CRMNBL          EQU          2                         ; R/W - 2 - NEXT BLOCK
+CRMSBT          EQU          3                         ; R/W - 3 - SPECIFC BYTE
+CRMSBL          EQU          4                         ; R/W - 4 - SPECIFIC BLOCK
+CRMMAX          EQU          5
+;
+CCBRRN          EQU          *                         ; I/O - RELATIVE RECORD NUMBER
+CCBFN2          EQU          *                         ; RENAME - FILE NAME 2 PTR
+CCBRLN          DS           2                         ; OPEN - RECORD LENGTH
+;
+CCBBYT          EQU          *                         ; I/O - RELATIVE BYTE NO (2 BYTES)
+CCBVOL          DS           1                         ; OPEN - VOL NO.
+CCBDRV          DS           1                         ; OPEN - DRIVE
+;
+CCBBLN          EQU          *                         ; I/O - BLOCK LENGTH (2 BYTES)
+CCBSLT          DS           1                         ; OPEN - SLOT NO
+CCBFUC          DS           1                         ; OPEN - FILE USE CODE
+;
+CCBFN1          EQU          *                         ; OPEN, DELETE, LOCK, UNLOCK, RENAME - FILENAME P
+CCBBBA          EQU          *                         ; BLOCKK I/O - BLOCK BUFFER PTR
+CCBDAT          DS           2                         ; BYTE I/O - DATA BYTE
+;
+CCBSTA          DS           1                         ; RESULT STATUS
+CREFUN          EQU          1                         ; FCB UNALLOCATED
+CRERR           EQU          2                         ; CCB REQ RANGE ERR
+CREMRE          EQU          3                         ; REQ MOD RANGE ERR
+CREPRO          EQU          4                         ; WRITE PROTECT
+CREEOF          EQU          5                         ; END OF FILE ON READ
+CREFNF          EQU          6                         ; FILE NOT FOUND
+CREVMM          EQU          7                         ; VOL MIS MATCH
+CREIOE          EQU          8                         ; I/O ERR
+CRENSA          EQU          9                         ; NO SECTORS AVAILABLE
+CREFLK          EQU          10                        ; FILE LOCKED
+;
+CCBSM           DS           1                         ; STATUS MODIFIER
+CCBFCB          DS           2                         ; FCB PTR
+CCBDBP          DS           2                         ; DIR BUF PTR
+CCBSBP          DS           2                         ; SECTOR BUF PTR
+CCBSPR          DS           4                         ; SPARE
+CCBLEN          EQU          *-CCB                     ; CCB LENGTH
+CFCBAD          EQU          CCBFCB
+CFCBDR          EQU          CCBDBP
+CFCBSB          EQU          CCBSBP
+                PAGE
+;
+;FILE CONTROL BLOCK (FCB) DEFINITION
+;DCB - FILE DATA CONTROL BLOCK
+;
+FCB             EQU          *
+;
+;DATA CONTROL BLOCK
+;
+FCBDCB          EQU          *
+DCBFDT          DS           1                         ; 1ST FILE DIRECTORY TRACK
+DCBFDS          DS           1                         ; 1ST FILE DIRECTORY SECTOR
+DCBCDT          DS           1                         ; CURRENT FILE DIRECTORY TRACK
+DCBCDS          DS           1                         ; CURRENT FILE DIRECTORY SECTOR
+DCBWRF          DS           1                         ; WRITE REQD FLAG
+;$80=WRITE FILE DIR
+;$40=WRITE SECTOR DIR
+DCBTRK          DS           1                         ; SECTOR TRACK ADR
+DCBSEC          DS           1                         ; SECTOR ADR
+DCBVDR          DS           1                         ; VOL DIR REC
+DCBVDI          DS           1                         ; VOL DIR INDEX
+DCBDMS          DS           2                         ; MAX NO DIRECTORY SECTORS
+DCBDFS          DS           2                         ; CURRENT DIR 1ST REL SECTOR
+DCBDNF          DS           2                         ; REL SECTOR OF NXT DIR
+DCBCMS          DS           2                         ; SECTOR CURRENTLY IN MEMORY
+DCBSDL          DS           2                         ; SECTOR DATA LENGTH
+DCBCRS          DS           2                         ; CURRENT RELATIVE SECTOR
+DCBCSB          DS           2                         ; CURRENT SECTOR BYTE
+DCBRCL          DS           2                         ; RECORD LENGTH
+DCBCRR          DS           2                         ; CURRENT RELATIVE REC
+DCBCRB          DS           2                         ; CURRENT RELATIVE BYTE
+DCBNSA          DS           2                         ; NO SECTORS ALLOCATED
+;
+DCBALS          DS           1                         ; ALLOCATION SECTOR BYTE
+DCBATK          DS           1                         ; ALLOCATION TRACK
+DCBABM          DS           4                         ; ALLOCATION TRACK SECTOR BIT MAP
+;
+DCBFUC          DS           1                         ; FILE USE CODE
+DCBSLT          DS           1                         ; SLOT NUMBER
+DCBDRV          DS           1                         ; DRIVE NUMBER
+DCBVOL          DS           1                         ; VOLUME DRIVER
+DCBVTN          DS           1                         ; VTOC TRACK NUMBER
+;
+DCBSPR          DS           3                         ; SPARES
+;
+DCBLEN          EQU          *-FCBDCB                  ; DCB LENGTH
+FCBLEN          EQU          *-FCB                     ; FCB LENGTH
+;
+
+; ####################################################################################################
+; #   END OF FILE:  FVCBUFS
+; #   LINES      :  187
+; #   CHARACTERS :  9792
+; #   Formatter  :  Assembly Language Reformatter 1.0.2 (07 January 1998)
+; ####################################################################################################

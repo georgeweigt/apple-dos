@@ -1,0 +1,156 @@
+; ####################################################################################################
+; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
+; #   FILE NAME:  BLDFTAB
+; ####################################################################################################
+
+                PAGE
+;
+; BLDFTB - BUILD FILE TABLES
+; TABLE MAP:
+; HIMEM,SOP
+; SBUFF N (256)
+; DBUFF N (256)
+; FTB N (FCBLEN)
+; HEADER N (38)
+; .
+; .
+; SBUFF 1
+; DBUFF 1
+; FTB 1
+; HEADER 1
+; THIS PROGRAM
+;
+; HEADER MAP:
+; FILENAME (30)
+; FTB PTR (2)
+; DBUF PTR (2)
+; SBUF PTR (2)
+; LINK (2)
+;
+BLDFTB          EQU          *
+                SEC
+                LDA          FTAB                      ; START OF FTAB AREA
+                STA          ZPGWRK                    ; IS 1ST FTB PTR
+                LDA          FTAB+1                    ; HEADER
+                STA          ZPGWRK+1
+                LDA          CNFTBS                    ; MOVE NO FTABS
+                STA          TEMP1A                    ; TO TEMP
+;
+BFT1            LDY          #0
+                TYA
+                STA          (ZPGWRK),Y                ; 1ST CHAR FN=0
+                LDY          #30                       ; INC Y TO FCB PTR
+                SEC
+                LDA          ZPGWRK                    ; END OF PTR HEADER
+                SBC          #FCBLEN                   ; MINUS FTAB LENGTH
+                STA          (ZPGWRK),Y                ; IS START OF FTB
+                PHA                                    ; SAVE LOW ADR BYTE
+                LDA          ZPGWRK+1
+                SBC          #0
+                INY
+                STA          (ZPGWRK),Y
+                TAX
+                DEX                                    ; FTB ADR - 256
+                PLA                                    ; IS ADR DIR BUFF
+                PHA
+                INY
+                STA          (ZPGWRK),Y                ; SET DIR BUF PTR
+                TXA
+                INY
+                STA          (ZPGWRK),Y
+                TAX
+                DEX                                    ; DIR BUFF - 256
+                PLA                                    ; IS SBUFF ADR
+                PHA
+                INY
+                STA          (ZPGWRK),Y
+                INY
+                TXA
+                STA          (ZPGWRK),Y
+;
+                DEC          TEMP1A                    ; DECREMENT TABLE INDEX
+                BEQ          BFT2                      ; COUNT AND BR IF DONE
+                TAX
+                PLA
+                SEC
+                SBC          #38                       ; SBUFF ADR - 38
+                INY
+                STA          (ZPGWRK),Y                ; IF ADR OF NEXT TAB
+                PHA                                    ; WHICH GOES INTO
+                TXA                                    ; LINK
+                SBC          #0
+                INY
+                STA          (ZPGWRK),Y
+                STA          ZPGWRK+1                  ; AND INTO ZPGWRK
+                PLA                                    ; FOR NEXT ENTRY
+                STA          ZPGWRK                    ; BUILD
+                JMP          BFT1                      ; GO BUILD NEXT
+;
+BFT2            EQU          *
+                PHA
+                LDA          #0                        ; SET LAST LINK
+                INY                                    ; TO ZERO
+                STA          (ZPGWRK),Y
+                INY
+                STA          (ZPGWRK),Y
+;
+                LDA          ASIBSW                    ; IF IB THEN GO
+                BEQ          BFTIB
+;
+                PLA                                    ; SET APPLESOFT
+                STA          ASHM1+1                   ; UPPER MEM LIMITS
+                STA          ASHM2+1
+                PLA
+                STA          ASHM1
+                STA          ASHM2
+                RTS
+;
+BFTIB           EQU          *
+                PLA                                    ; SET IB
+                STA          IBHMEM+1                  ; UPPER MEM LIMITS
+                STA          IBSOP+1
+                PLA
+                STA          IBHMEM
+                STA          IBSOP
+                RTS
+                PAGE
+;
+; MVISW - MOVE INPUT SWITCH
+;
+MVCSW           EQU          *
+                LDA          INSW+1
+                CMP          CINA+1
+                BEQ          MVOSW
+                STA          SVINS+1
+                LDA          INSW                      ; SAVE CHAR IN SWITCH
+                STA          SVINS
+;
+                LDA          CINA                      ; SET DFB CHAR IN ADR
+                STA          INSW
+                LDA          CINA+1
+                STA          INSW+1
+;
+;
+; MVOSW - MOVE OUTPUT SWITCH
+;
+MVOSW           EQU          *
+                LDA          OUTSW+1
+                CMP          COUTA+1
+                BEQ          MVSRTN
+                STA          SVOUTS+1
+                LDA          OUTSW                     ; SAVE CHAR OUT SWITCH
+                STA          SVOUTS
+;
+                LDA          COUTA                     ; SET DFB CHAR OUT ADR
+                STA          OUTSW
+                LDA          COUTA+1
+                STA          OUTSW+1
+MVSRTN          EQU          *
+                RTS
+
+; ####################################################################################################
+; #   END OF FILE:  BLDFTAB
+; #   LINES      :  144
+; #   CHARACTERS :  4908
+; #   Formatter  :  Assembly Language Reformatter 1.0.2 (07 January 1998)
+; ####################################################################################################

@@ -1,0 +1,292 @@
+; ####################################################################################################
+; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
+; #   FILE NAME:  FLOCNXB
+; ####################################################################################################
+
+                PAGE
+;
+;RDVTOC - READ VTOC
+;WRVTOC - WRITE VTOC
+;
+RDVTOC          EQU          *
+                LDA          #IBCRTS                   ; READ
+                BNE          VTIO
+WRVTOC          EQU          *
+                LDA          #IBCWTS                   ; WRITE
+;
+VTIO            LDY          AVTOC                     ; MOVE BUFF ADR
+                STY          IBBUFP
+                LDY          AVTOC+1
+                STY          IBBUFP+1
+;
+                LDX          DCBVTN                    ; GET TRACK
+                LDY          #0
+                JMP          DCBIO                     ; GO DO I/O
+                PAGE
+;
+;RDVDIR - READ VOLUME DIRECTOR
+;
+RDVDIR          EQU          *
+                PHP                                    ; SAVE STATUS
+                JSR          MVVDBA
+;
+                PLP                                    ; GET STATUS
+                BCS          RVDA                      ; BR IF R0 NEXT
+;
+RVDC            LDY          VDIRSC                    ; GET 1ST SECTOR
+                LDX          VDIRTK                    ; GET FIRST TRK
+                BNE          RVDGO                     ; GO READ
+;
+RVDA            EQU          *
+                LDX          VDLTRK                    ; GET LINK TRACK
+                BNE          RDVC                      ; BR IF A LINK
+                SEC                                    ; SET END OF DIR
+                RTS
+;
+RDVC            LDY          VDLSEC                    ; GET SECTOR
+RVDGO           EQU          *
+                STX          CVDTRK                    ; SET CUR TRACK
+                STY          CVDSEC                    ; SET CUR SECTOR
+                LDA          #IBCRTS                   ; GET CMD
+                JSR          DCBIO                     ; GO DO I/O
+                CLC
+                RTS
+                PAGE
+;
+;WRVDIR - WRITE VOLUME DIRECTORY SECTOR
+;
+WRVDIR          EQU          *
+                JSR          MVVDBA
+;
+                LDX          CVDTRK                    ; CURRENT TRACK
+                LDY          CVDSEC                    ; CURRENT SECTOR
+                LDA          #IBCWTS                   ; WRITE COMMAND
+                JMP          DCBIO                     ; GO DO I/O
+;
+;MVVDBA - MOVE VOL DIR BUF ADR TO IOB
+;
+MVVDBA          EQU          *
+                LDA          AVOLDR                    ; MOVE ADR
+                STA          IBBUFP
+                LDA          AVOLDR+1
+                STA          IBBUFP+1
+                RTS
+                PAGE
+;
+;DCBIO - DO I/O FOR A DCB
+;
+DCBIO           EQU          *
+                STX          IBTRK                     ; TRACK
+                STY          IBSECT                    ; SECTOR
+DCBIO2          EQU          *
+                STA          IBCMD                     ; COMMAND
+                CMP          #IBCWTS
+                BNE          DCBIO1
+                ORA          DCBWRF
+                STA          DCBWRF
+DCBIO1          EQU          *
+                LDA          DCBVOL                    ; VOL
+                EOR          #$FF                      ; UNINVERT VOL BITS
+                STA          IBVOL
+                LDA          DCBSLT                    ; SLOT
+                STA          IBSLOT
+                LDA          DCBDRV                    ; DRIVE
+                STA          IBDRVN
+                LDA          DCBSDL                    ; LENGTH
+                STA          IBDLEN
+                LDA          DCBSDL+1
+                STA          IBDLEN+1
+                LDA          #1                        ; IOB TYPE
+                STA          IBTYPE
+;
+                LDY          AIOB                      ; IOB ADR
+                LDA          AIOB+1
+                JSR          DISKIO                    ; GO DO I/O
+;
+                LDA          IBSMOD
+                STA          CCBVOL
+                LDA          #$FF                      ; RESET VOL
+                STA          IBVOL
+                BCS          BADIO                     ; BR IF BAD
+                RTS                                    ; RTN IF GOOD
+;
+BADIO           LDA          IBSTAT                    ; GET STATUS
+                LDY          #CREVMM
+                CMP          #IBVMME                   ; WAS IT VOLUME MISMATCH
+                BEQ          BD2                       ; BR IF YES
+                LDY          #CREPRO
+                CMP          #IBWPER
+                BEQ          BD2
+                LDY          #CREIOE
+BD2             TYA
+                JMP          ERRORB                    ; GO RTN
+                PAGE
+;
+;LOCNXB - LOCATE NEXT BYTE
+;
+LOCNXB          EQU          *
+                LDA          DCBCRS                    ; IS THE CURRENT RELATIVE SECTOR
+                CMP          DCBCMS                    ; EQUAL TO THE CURRENT MEM SECTOR
+                BNE          LNB1                      ; BR IF NOT EQ
+                LDA          DCBCRS+1
+                CMP          DCBCMS+1
+                BEQ          LNB8                      ; BR IF REQD SECTOR IN MEM
+;
+LNB1            EQU          *                         ; NEED A DIFFERENT SECTOR IN MEM
+                JSR          WRSECT                    ; GO WRITE SECTOR (IF REQD)
+;
+LNB2            LDA          DCBCRS+1                  ; IS CURRENT REL SECTORY
+                CMP          DCBDFS+1                  ; IN CURRENT DIRECTORY (LOW LIMIT)
+                BCC          LNB4                      ; BR IF IN A PREVIOUS DIR
+                BNE          LNB3                      ; BR IF MAYBE IN THIS ONE
+                LDA          DCBCRS                    ; TEST LOW BYTES
+                CMP          DCBDFS
+                BCC          LNB4                      ; BR IF IN PREVIOUS DIR
+;
+LNB3            LDA          DCBCRS+1                  ; IS CURRENT REL SECTOR
+                CMP          DCBDNF+1                  ; IN CURRENT DIRECTOR (HI LIMIT)
+                BCC          LNB6                      ; BR IF IN THIS ONE
+                BNE          LNB4                      ; BR IF IN A NEXT DIR
+                LDA          DCBCRS
+                CMP          DCBDNF
+                BCC          LNB6                      ; BR IF IN THIS ONE
+;REQD SECTOR IN A NEXT DIRECTORY
+LNB4            JSR          RDFDIR                    ; GO READ NEXT FILE DIR
+                BCC          LNB2                      ; BR NXT AVAIL
+                RTS                                    ; RETURN IF EOF DIR
+;
+;
+LNB6            EQU          *                         ; CALCULATE DISPL INTO DIR
+                SEC
+                LDA          DCBCRS                    ; REQD REL SECTOR MINUS
+                SBC          DCBDFS
+                ASL          A                         ; TIMES 2
+                ADC          #FDENT                    ; PLUS DISPL TO 1ST
+                TAY
+                JSR          MVFCBD                    ; MOVE DIR ADR TO ZPG
+                LDA          (ZPGFCB),Y                ; GET TRACK
+                BNE          LNB7                      ; BR IF NOT ZERO
+                LDA          CCBREQ
+                CMP          #CRQWR                    ; WRITE!
+                BEQ          LNB7A
+                SEC
+                RTS
+LNB7A           JSR          GNWSEC                    ; GO GET A NEW SECTOR
+                JMP          LNBCON
+LNB7            STA          DCBTRK                    ; SET TRK INTO DCB
+                INY
+                LDA          (ZPGFCB),Y                ; GET SECTOR
+                STA          DCBSEC                    ; PUT INTO DCB
+                JSR          RDSECT                    ; GO READ SECTOR
+LNBCON          LDA          DCBCRS                    ; MOVE CUR REL SECTOR
+                STA          DCBCMS
+                LDA          DCBCRS+1                  ; TO CUR MEM SECTOR
+                STA          DCBCMS+1
+;
+LNB8            EQU          *
+                JSR          MVFCBS                    ; MOVE SECTOR BUFF ADR TO ZP
+                LDY          DCBCSB                    ; GET SECT BYTE
+                CLC                                    ; CARRY CLEAR = ALL OK
+                RTS                                    ; DONE
+                PAGE
+;
+;
+GNWSEC          EQU          *                         ; NEED NEW SECTOR
+                STY          TEMP2                     ; SAVE DIR INDEX
+                JSR          GETSEC                    ; GET A SECTOR
+                LDY          TEMP2
+                INY
+                STA          (ZPGFCB),Y                ; SET NEW SECTOR
+                STA          DCBSEC
+                DEY
+                LDA          DCBATK
+                STA          (ZPGFCB),Y                ; SET NEW TRACK
+                STA          DCBTRK
+;
+                JSR          MVFCBS
+                JSR          CLRSEC                    ; GO CLEAR SECTOR
+;
+;
+                LDA          #$C0                      ; INDICATE BOTH
+                ORA          DCBWRF                    ; DIR AND SECTOR
+                STA          DCBWRF                    ; MUST BE WRITTEN
+                RTS                                    ; DONE
+                PAGE
+;
+;INCRRB - INCREMENT RELATIVE RECORD BYTE
+;
+INCRRB          EQU          *
+                LDX          DCBCRR                    ; MOVE BYTE JUST READ OR WRITTEN
+                STX          CCBRRN
+                LDX          DCBCRR+1
+                STX          CCBRRN+1
+                LDX          DCBCRB                    ; X=REL BYTE (LOW)
+                LDY          DCBCRB+1                  ; Y=REL BYTE HI
+                STX          CCBBYT
+                STY          CCBBYT+1
+                INX                                    ; INC REL BYTE (LOW)
+                BNE          INCR1                     ; BR IF NO CARRY
+                INY                                    ; INC REL BYTE (HI)
+;
+INCR1           CPY          DCBRCL+1                  ; REL BYTE=REC LENGTH
+                BNE          INCR2                     ; BR IF NOT
+                CPX          DCBRCL                    ; TEST LOW BYTES
+                BNE          INCR2
+                LDX          #0
+                LDY          #0                        ; RESET REL BYTE TO ZERO
+                INC          DCBCRR                    ; AND INCR
+                BNE          INCR2                     ; RELATIVE RECORD
+                INC          DCBCRR+1
+;
+INCR2           STX          DCBCRB                    ; SAVE NEW RELATIVE BYTE
+                STY          DCBCRB+1
+;
+                RTS
+                PAGE
+;
+;INCSCB - INCREMENT SECTOR BYTE
+;
+INCSCB          EQU          *
+                INC          DCBCSB                    ; INC SECTOR BYTE
+                BNE          INCS2                     ; BR IF NOT FULL
+                INC          DCBCRS                    ; AND INCR
+                BNE          INCS2                     ; RELATIVE SECTOR
+                INC          DCBCRS+1
+;
+;
+INCS2           EQU          *
+                RTS                                    ; DONE
+                PAGE
+;
+;MIBDA - MOVE AND INCREMENT CCBDAT
+;
+MIBDA           EQU          *
+                LDY          CCBBBA                    ; Y=ADR LOW
+                LDX          CCBBBA+1                  ; X=ADR HI
+                STY          ZPGFCB                    ; PUT ADR INTO ZPG
+                STX          ZPGFCB+1
+;
+                INC          CCBBBA                    ; INC ADR LOW
+                BNE          MIB1                      ; BR IF NOT ZERO
+                INC          CCBBBA+1                  ; INC ADR HI
+MIB1            RTS                                    ; DONE
+;
+;DTBLN - DECREMENT BLOCK LENGTH AND TEST ZERO
+;
+DTBLN           EQU          *
+                LDY          CCBBLN                    ; GET LEN LOW
+                BNE          DTB1                      ; BR IF NOT ZERO
+                LDX          CCBBLN+1                  ; GET LEN HI
+                BEQ          DTB2                      ; BR IF LEN=0
+                DEC          CCBBLN+1                  ; DEC LEN (HIGH)
+DTB1            DEC          CCBBLN                    ; DEC LEN (LOW)
+                RTS                                    ; DONE
+;
+DTB2            JMP          GOODIO                    ; FINISHED BLOCK
+
+; ####################################################################################################
+; #   END OF FILE:  FLOCNXB
+; #   LINES      :  280
+; #   CHARACTERS :  12148
+; #   Formatter  :  Assembly Language Reformatter 1.0.2 (07 January 1998)
+; ####################################################################################################

@@ -1,0 +1,134 @@
+; ####################################################################################################
+; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
+; #   FILE NAME:  FDOSENT
+; ####################################################################################################
+
+                PAGE
+;
+; MISC BUT REQD CELLS
+;
+CFTABA          DDB          0                         ; CURRENT FILE TABLE POINTER
+ISTATE          DFB          0                         ; INPUT STATE
+OSTATE          DFB          0                         ; OUTPUT STATE
+SVOUTS          DDB          0                         ; SAVED OUT SWITCH
+SVINS           DDB          0                         ; SAVED IN SWITCH
+CNFTBS          DFB          0                         ; CURRENT NO FILE TABLES
+DFNFTB          DFB          3                         ; DEFAULT NO FILE TABLES
+SVSTK           DFB          0                         ; SAVED STACK PTR
+SVX             DFB          0                         ; DSAVED X REG
+SVY             DFB          0                         ; SAVED Y REG
+SVA             DFB          0                         ; SAVED ACU
+LBUFD           DFB          0                         ; LINE BUFF DISPL
+MONMOD          DFB          0                         ; MONITOR MODE BITS
+MC              EQU          $40                       ; MONITOR CMDS
+*MI EQU $20  ; MONITOR INPUT
+*MO EQU $10  ; MONITOR OUTPUT
+CMDNO           DFB          $00                       ; COMMAND NO IS ZERO FOR BOOT UP
+SVBL            DFB          0,0
+SVCMD           DFB          0
+TEMP1A          DFB          0
+TEMP2A          DFB          0
+INOPTS          DFB          0                         ; INPUT OPTIONS
+CUROPT          EQU          *                         ; CURRENT OPTIONS
+CV              DW           0                         ; VOLUME
+CD              DW           0                         ; DRIVE
+CS              DW           0                         ; SLOT
+CL              DW           1                         ; RECORD LENGTH
+CR              DW           0                         ; RECORD NUMBER
+CB              DW           0                         ; RECORD BYTE
+CA              DW           0                         ; ADDRESS
+IMBITS          DFB          0
+                MSB          ON
+FNAME1          ASC          "HELLO                         " ; FILENAME 1"
+                MSB          OFF
+FNAME2          DS           30,$A0                    ;FILENAME 2
+DFNFTS          DFB          3                         ; DEFAULT FILE TABLES = 3
+CCHAR           DFB          $84                       ; CONTROL CHAR
+ESTATE          DFB          0                         ; EXECUTE STATE
+EFTABA          DFB          0,0                       ; EXECUTE FILE TABLE POINTER
+ASIBSW          DFB          0                         ; APPLESOFT, IB SWITCH
+RSTATE          DFB          0                         ;FOR APPLESOFT RUN PROGRAM AFTER RELOC
+FASB            DFB          $C1,$D0,$D0,$CC           ;'APPLESOFT' WITH BIT 7 HIGH
+                DFB          $C5,$D3,$CF,$C6
+                DFB          $D4
+FASBL           EQU          *-FASB
+                PAGE
+;
+; DOS ADR TABLES (RELOCATED)
+;
+SAT2            EQU          *
+AIOB            DW           IOB                       ; 5-ADR IOB
+AVTOC           DW           VTOC                      ; 6-ADR VTOC
+AVOLDR          DW           VOLDIR                    ; 7-ADR VOLDIR
+AEND            DW           ENDOFDOS                  ;END OF DOS
+;
+CMDVT           DW           GOODIO-1                  ; 0-NULL
+                DW           FOPEN-1                   ; 1-OPEN FILE
+                DW           FCLOSE-1                  ; 2-CLOSE FILE
+                DW           FREAD-1                   ; 3-READ DATA
+                DW           FWRITE-1                  ; 4-WRITE DATA
+                DW           FDEL-1                    ; 5-DELETE FILE
+                DW           RDIR-1                    ; 6-READ DIRECTORY
+                DW           FLOCK-1                   ; 7-LOCK A FILE
+                DW           FUNLCK-1                  ; 8-UNLOCK A FILE
+                DW           FRNME-1                   ; 9-RENAME
+                DW           FPOSTN-1                  ; 10-POSITION A FILE
+                DW           FFMT-1                    ; FORMAT
+                DW           FVAR-1                    ; VARIFY
+                DW           GOODIO-1                  ; 11-SPARE
+;
+RVT             EQU          *
+                DW           GOODIO-1
+                DW           RNXBYT-1                  ; 1-RD NEXT BYTE
+                DW           RNXBLK-1                  ; 1-RD NEXT BLOCK
+                DW           RSPBYT-1                  ; 2-RD SPECIFIC BYTE
+                DW           RSPBLK-1                  ; 3 - RD SPECIFIC BLOCK
+                DW           GOODIO-1                  ; 4 - SPARE
+;
+WVT             EQU          *
+                DW           GOODIO-1
+                DW           WNXBYT-1                  ; 1-WR NEXT BYTE
+                DW           WNXBLK-1                  ; WR NEXT BLOCK
+                DW           WSPBYT-1                  ; 2-WR SPECIFIC BYTE
+                DW           WSPBLK-1                  ; 3-WR SPECIFIC BLOCK
+                DW           GOODIO-1                  ; 4 - SPARE
+EAT2            EQU          *
+                PAGE
+;
+; USERENT - DOS EXTERNAL ENTRY POINT (USER ENTRY)
+; ENTRY PARM:
+;  A= HIGH ADDRESS OF CCB
+;  Y= LOW ADDRESS OF CCB
+;  X= 0 IF CREATE DESIRED
+;  X> 0 IF CREATE NOT DESIRED
+; EXIT PARM:
+;  CARRY CLEAR = OPERATION OK
+;  CARRY SET = ERROR
+;
+SC2             EQU          *
+USERENT         CPX          #0                        ;IF X=0 THEN FILE ENTRY CREATED IF NOT
+                BEQ          USRCR                     ; FOUND. NOTE: FILE NOT FOUND ERROR STILL IS RETURNED
+                LDX          #2                        ;INDICATE NO CREATE ALLOWED
+USRCR           STX          CMDNO                     ;SET UP FOR CREATE CAPIBILITY
+DOSENT          EQU          *
+                TSX
+                STX          ENTSTK
+                JSR          CLCFCB                    ; GO CALCULATE FCB
+                LDA          CCBREQ                    ; GET REQUEST
+                CMP          #CRQMAX                   ; TTEST REQ RANGE
+                BCS          ERR2                      ; BR OUT OF RANGE
+                ASL          A                         ; REQ CODE *2
+                TAX
+                LDA          CMDVT+1,X                 ; PUSH ADR ONTO STACK
+                PHA
+                LDA          CMDVT,X
+                PHA
+DENRTS          RTS
+ERR2            JMP          ERROR2
+
+; ####################################################################################################
+; #   END OF FILE:  FDOSENT
+; #   LINES      :  122
+; #   CHARACTERS :  6315
+; #   Formatter  :  Assembly Language Reformatter 1.0.2 (07 January 1998)
+; ####################################################################################################

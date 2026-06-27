@@ -1,0 +1,66 @@
+; ####################################################################################################
+; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
+; #   FILE NAME:  PRENIBL
+; ####################################################################################################
+
+                SBTL         '16-SECTOR PRENIBLIZE'
+****************************
+*                          *
+*    PRENIBLIZE SUBR       *
+*   (16-SECTOR FORMAT)     *
+*                          *
+****************************
+*                          *
+*  CONVERTS 256 BYTES OF   *
+*  USER DATA IN (BUF),0    *
+*  TO (BUF),255 INTO 342   *
+*  6-BIT NIBLS (00ABCDEF)  *
+*  IN NBUF1 AND NBUF2.     *
+*                          *
+*    ---- ON ENTRY ----    *
+*                          *
+*  BUF IS 2-BYTE POINTER   *
+*    TO 256 BYTES OF USER  *
+*    DATA.                 *
+*                          *
+*    ---- ON EXIT -----    *
+*                          *
+*  A-REG UNCERTAIN.        *
+*  X-REG HOLDS $FF.        *
+*  Y-REG HOLDS $FF.        *
+*  CARRY SET.              *
+*                          *
+*  NBUF1 AND NBUF2 CONTAIN *
+*    6-BIT NIBLS OF FORM   *
+*    00ABCDEF.             *
+*                          *
+****************************
+PRENIB16        LDX          #$0                       ;START NBUF2 INDEX. CHANGED BY WOZ
+                LDY          #2                        ;START USER BUF INDEX. CHANGED BY WOZ.
+PRENIB1         DEY          NEXT                      ;USER BYTE.
+                LDA          (BUF),Y
+                LSR          A                         ;SHIFT TWO BITS OF
+                ROL          NBUF2,X                   ;CURRENT USER BYTE
+                LSR          A                         ;INTO CURRENT NBUF2
+                ROL          NBUF2,X                   ;BYTE.
+                STA          NBUF1,Y                   ;(6 BITS LEFT).
+                INX                                    ;FROM 0 TO $55.
+                CPX          #$56
+                BCC          PRENIB1                   ;BR IF NO WRAPAROUND.
+                LDX          #0                        ;RESET NBUF2 INDEX.
+                TYA                                    ;USER BUF INDEX.
+                BNE          PRENIB1                   ;(DONE IF ZERO)
+                LDX          #$55                      ;NBUF2 IDX $55 TO 0.
+PRENIB2         LDA          NBUF2,X
+                AND          #$3F                      ;STRIP EACH BYTE
+                STA          NBUF2,X                   ;OF NBUF2 TO 6 BITS.
+                DEX
+                BPL          PRENIB2                   ;LOOP UNTIL X NEG.
+                RTS                                    ;RETURN.
+
+; ####################################################################################################
+; #   END OF FILE:  PRENIBL
+; #   LINES      :  54
+; #   CHARACTERS :  2360
+; #   Formatter  :  Assembly Language Reformatter 1.0.2 (07 January 1998)
+; ####################################################################################################

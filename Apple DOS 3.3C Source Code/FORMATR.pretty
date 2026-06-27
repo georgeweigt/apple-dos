@@ -1,0 +1,227 @@
+; ####################################################################################################
+; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
+; #   FILE NAME:  FORMATR
+; ####################################################################################################
+
+                SBTL         '16-SECTOR FORMATTER'
+****************************
+*                          *
+*  FORMAT DISK AND RETURN  *
+*                          *
+****************************
+*
+* EQUATES FOR FORMATTER
+*
+NSYNC           EQU          $45                       ;NUM GAP SELF-SYNC NIBLS
+*
+                REP          40
+DSKFORM         EQU          *
+                DO           DIAGMODE                  ;ELIMINATE FMTR FROM DIAG ASSEMBLY
+                LST          OFF
+                ELSE
+                LDY          #3
+                LDA          (IOBPL),Y                 VOLUME NUMBER IN IOB.
+                STA          NVOL                      FOR FORMATTER.
+                LDA          #$AA                      SET Z-PAG LOC TO $AA FOR
+                STA          AA                        TIME DEPENDENT REFERENCES.
+                LDY          #$56
+                LDA          #0
+                STA          TRK                       TRACK NUMBER, 0 TO 34
+CLRNBUF2        STA          NBUF2-1,Y                 CLEAR NBUFS TO WRITE
+                DEY          ZERO                      SECTORS.
+                BNE          CLRNBUF2
+CLRNBUF1        STA          NBUF1,Y
+                DEY
+                BNE          CLRNBUF1
+                LDA          #$50
+                JSR          SETTRK                    FAKE LIKE ON TRACK 80.
+                LDA          #$28
+                STA          NSYNC                     BEGIN WITH 40 SELF-SYNC NIBLS.
+FORMTRK         LDA          TRK
+                JSR          MYSEEK                    GOTO NEXT TRACK.
+                JSR          WTRACK16                  WRITE AND VERIFY TRACK.
+FORMERR1        LDA          #8                        'UNABLE TO FORMAT' ERR CODE.
+                BCS          FORMERR                   CONTINUE IF NO ERROR.
+                LDA          #$30                      UP TO 48 SECTOR RETRIES
+                STA          RETRYCNT                  TO FIND SECTOR 0.
+FINDS0          SEC          ANTICIPATE                'UNABLE TO FORMAT'
+                DEC          RETRYCNT                  DONE 48 RETRIES?
+                BEQ          FORMERR                   IF SO, 'UNABLE TO FORMAT' ERR.
+                JSR          RDADR16                   ;READ ADR FIELD.
+                BCS          FINDS0                    RETRY IF ERR.
+                LDA          SECT                      CHECK SECTOR THAT WAS READ.
+                BNE          FINDS0                    CONTINUE SEARCHING IF NOT SECT 0.
+                JSR          READ16                    ;NOW READ DATA FIELD.
+                BCS          FINDS0                    CONTINUE SEARCH IF ERR.
+*       (NOW POSITIONED PROPERLY FOR NEXT TRACK)
+                INC          TRK                       INCREMENT TRACK NUMBER.
+                LDA          TRK
+                CMP          #$23                      CONTINUE IF LESS THAN 35.
+                BCC          FORMTRK
+                CLC          CLEAR                     CARRY TO INDICATE 'NO ERR'
+                BCC          FORMDONE                  ELSE TURN OFF MOTOR AND RETURN.
+FORMERR         LDY          #$0D
+                STA          (IOBPL),Y                 RETURN ERROR CODE.
+                SEC          SET                       CARRY TO INDICATE ERR.
+FORMDONE        LDA          MOTOROFF,X                TURN MOTOR OFF.
+                RTS          AND                       RETURN.
+                PAGE
+******************************
+*                            *
+*   WRITE TRACK SUBROUTINE   *
+*                            *
+******************************
+WTRACK16        LDA          #0
+                STA          NSECT                     SECTOR NUMBER, 0 TO 15.
+                LDY          #128                      ;128 NIBS PRIOR SECTOR 0
+                BNE          WSECT0                    ; TO INSURE NO BLANK SPOT BETW 15 & 0
+WSECT           LDY          NSYNC                     CURRENT NUM OF GAP SELF-SYNC NIBLS.
+WSECT0          EQU          *
+                JSR          WADR16                    WRITE GAP AND ADR FIELD.
+                BCS          WEXIT2                    ERR IF WRITE PROTECTED.
+                JSR          WRITE16                   ;WRITE SECTOR FROM NBUF1, NBUF2.
+                BCS          WEXIT2                    ERR IF WRITE PROTECTED.
+                INC          NSECT                     NEXT OF 16 SECTORS.
+                LDA          NSECT
+                CMP          #$10
+                BCC          WSECT                     CONTINUE IF NOT DONE.
+                PAGE
+*****************************
+*                           *
+*     VERIFY ROUTINE        *
+*                           *
+*  VERIFIES THAT THE FIRST  *
+*  SECTOR ENCOUNTERED IS    *
+*  SECTOR 0, AND THAT ALL   *
+*  16 SECTORS ARE READABLE  *
+*  WITH MINIMAL RETRIES.    *
+*  (2 REVOLUTIONS MAXIMUM)  *
+*                           *
+*  IF FIRST SECTOR IS NOT   *
+*  SECTOR 0 THEN THE        *
+*  CURRENT NUMBER OF SELF-  *
+*  SYNC NIBLS IS DECR'D BY  *
+*  1 (IF ALREADY LESS THAN  *
+*  16) OR BY 2. THEN SECTOR *
+*  15 IS LOCATED SO AS TO   *
+*  POSITION THE NEW TRACK   *
+*  REWRITE.                 *
+*                           *
+*  IF UNABLE TO READ ANY    *
+*  SECTOR THEN THE ENTIRE   *
+*  TRACK IS REWRITTEN.      *
+*                           *
+*  AFTER VERIFYING TRACK 0, *
+*  THE NUMBER OF SELF-SYNC  *
+*  NIBLS, NSYNC, IS DECR'D  *
+*  BY 2 (IF STILL 16 OR     *
+*  GREATER).                *
+*                           *
+*****************************
+                PAGE
+VTRACK          LDY          #$F
+                STY          NSECT                     SET 16 BYTES OF
+                LDA          #$30                      SECTOR FOUND TABLE
+                STA          RETRYCNT                  TO $30 (MARK THEM).
+CLRFOUND        STA          FOUND,Y
+                DEY
+                BPL          CLRFOUND
+                LDY          NSYNC                     DELAY 50 USEC FOR EVERY
+S0DELAY         JSR          WEXIT2                    (12)  SELF-SYNC NIBL
+                JSR          WEXIT2                    (12)  EXPECTED TO INSURE
+                JSR          WEXIT2                    (12)  PROPER GAP PRIOR SECTOR 0.
+                PHA          (3)
+                PLA          (4)
+                NOP          (2)
+                DEY          (2)
+                BNE          S0DELAY                   (3)
+                JSR          RDADR16                   ;READ NEXT ADDRESS FIELD.
+                BCS          S15LOC                    ERR, LOCATE SECT 15 AND REWRITE TRK.
+                LDA          SECT                      WAS IT SECTOR 0?
+                BEQ          VDATA                     YES, NOW VERIFY DATA FIELD.
+                LDA          #$10
+                CMP          NSYNC                     DECR NSYNC BY 1 IF LESS THAN
+                LDA          NSYNC                     16, BY 2 IF NOT LESS.
+                SBC          #1
+                STA          NSYNC
+                CMP          #5                        IF LESS THAN 5, UNRECOVERABLE
+                BCS          S15LOC                    ERR, ELSE REWRITE AFTER DATA FLD 15.
+VERR            SEC          DRIVE                     EXTREMELY FAST OR
+                RTS          OTHER                     SEVERE ERROR.
+VSECT           JSR          RDADR16                   ;READ AN ADDRESS FIELD.
+                BCS          VERR1                     RETRY IF ERR.
+VDATA           JSR          READ16                    ;READ DATA FIELD.
+                BCC          SECTOK                    (GOOD)
+VERR1           DEC          RETRYCNT                  NEXT OF 48 SECTOR TRIES.
+                BNE          VSECT                     (KEEP TRYING)
+S15LOC          JSR          RDADR16                   ;READ ADDRESS FIELD.
+                BCS          NOTS15                    ERR, TRY UP TO 128 TIMES.
+                LDA          SECT                      SECTOR THAT WAS READ.
+                CMP          #$F                       SECTOR 15?
+                BNE          NOTS15                    NO, CONTINUE SEARCHING.
+                JSR          READ16                    ;READ DATA FIELD.
+                BCC          WTRACK16                  WRITE TRACK FROM HERE IF NO ERR.
+NOTS15          DEC          RETRYCNT                  $FF TO $7F, 128 TRIES.
+                BNE          S15LOC                    TRY FOR SECT 15 AGAIN.
+                SEC          SET                       CARRY TO INDICATE VERIFY ERR.
+WEXIT2          RTS          AND                       RETURN TO FORMATTER.
+SECTOK          LDY          SECT                      THIS IS SECTOR READ.
+                LDA          FOUND,Y                   ALREADY FOUND?
+                BMI          VERR1                     YES, IGNORE IT.
+                LDA          #$FF
+                STA          FOUND,Y                   INDICATE THIS SECT NOW FOUND.
+                DEC          NSECT                     FOUND 16 SECTORS?
+                BPL          VSECT                     NO, LOOK FOR NEXT.
+                LDA          TRK
+                BNE          WEXIT1                    IF TRACK 0 AND NSYNC > 16
+                LDA          NSYNC                     (NUM GAP SYNC NIBLS)
+                CMP          #$10                      THEN SUBTRACT 2 FROM NSYNC
+                BCC          WEXIT2                    TO AVOID RETRIES ON LATER TRKS.
+                DEC          NSYNC
+                DEC          NSYNC
+WEXIT1          CLC          INDICATE                  NO ERROR.
+                RTS          RETURN.
+******************************
+AEC2            EQU          *                         ;TELL RELOCTR WHERE RWTS ENDS
+******************************
+FOUND           DFB          0,0,0,0                   'SECTOR FOUND' TABLE.
+                DFB          0,0,0,0
+                DFB          0,0,0,0
+                DFB          0,0,0,0
+                FIN
+                LST          ON
+                REP          40
+* THIS TABLE IS USED TO TRANSLATE
+*  LOGICAL (REQUESTED) SECTOR NUMBER
+*  TO PHYSICAL SECTOR NUMBER. THE
+*  DISKETTE IS FORMATTED WITH ALL
+*  SECTORS IN MONOTONICALLY INCREASING
+*  ORDER. THE TRANSLATION WILL ALLOW
+*  TIME BETWEEN SECTORS FOR READS.
+*
+                REP          40
+*
+* NOTE: THE CURRENT IMPLEMENTATION OF DOS
+*  USUALLY ACCESSES SECTORS IN DECREASING
+*  ORDER ON A TRACK. THUS WE WILL
+*  TRANSLATE IN REVERSE ORDER...
+*
+* THE INTERLEAVE IS THEN 9:1
+*
+* NOTE: WE MAP LOGICAL SECTOR 0
+*  INTO PHYSICAL SECTOR 0 SO THAT
+*  WRITING OF BOOT DURING 'INIT'
+*  IS CORRECT FOR SECTOR ZERO.
+*
+INTRLEAV        EQU          *
+                DFB          $00,$0D,$0B,$09
+                DFB          $07,$05,$03,$01
+                DFB          $0E,$0C,$0A,$08
+                DFB          $06,$04,$02,$0F
+
+; ####################################################################################################
+; #   END OF FILE:  FORMATR
+; #   LINES      :  215
+; #   CHARACTERS :  10690
+; #   Formatter  :  Assembly Language Reformatter 1.0.2 (07 January 1998)
+; ####################################################################################################

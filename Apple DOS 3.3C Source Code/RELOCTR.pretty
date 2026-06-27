@@ -1,0 +1,349 @@
+; ####################################################################################################
+; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
+; #   FILE NAME:  RELOCTR
+; ####################################################################################################
+
+                PAGE
+*****************************************************
+*                                                   *
+* (C) COPYRIGHT 1978,1980,1982 APPLE COMPUTER, INC. *
+*                                                   *
+*****************************************************
+                SKP          2
+*********************************
+*                               *
+*  ADAPTED FOR MACRO EDASM BY   *
+*        JOHN ARKLEY            *
+*         DEC  1980             *
+*                               *
+*********************************
+                SKP          2
+*********************************
+*                               *
+*  DOS 3.3 REVISION B PATCHES   *
+*   INSTALLED BY MARK HOUDE     *
+*          JUL 1982             *
+*                               *
+*********************************
+                SKP          2
+*********************************
+*                               *
+*  DOS 3.3 REV B PATCHES VER 2  *
+*   INSTALLED BY FERN BACHMAN   *
+*          SEP 1982             *
+*                               *
+*********************************
+                SKP          2
+*********************************
+*                               *
+*    DOS33C PATCHES (APPEND &   *
+*     UPPER/LOWER CASE CHECK)   *
+*                               *
+*            BY                 *
+*        GUIL  BANKS            *
+*         JULY 1983             *
+*                               *
+*********************************
+;
+;EQUATES REQD TO FIND THINGS IN APPLE II
+;
+SETVID          EQU          $FE93
+SETKBD          EQU          $FE89
+PROMPT          EQU          $33                       ; PROMPT CHAR
+OUTSW           EQU          $36                       ; OUTPUT VECTOR SWITCH
+INSW            EQU          $38                       ; INPUT VECTOR SWITCH
+ZPGWRK          EQU          $40                       ; ZERO PAGE WORK CELL
+CNUM            EQU          $44                       ; CONVERTED NUMERIC
+LBUFF           EQU          $200                      ; LINE BUFFER
+MULT            EQU          $FB63                     ; MULT ROUTINE
+INPRT           EQU          $FE8B                     ; SET IN PORT
+OUTPRT          EQU          $FE95                     ; SET OUT PORT
+IBCHN           EQU          $E836                     ; BASIC RUN
+IBLMEM          EQU          $4A                       ; BASIC LOW MEM
+IBHMEM          EQU          $4C                       ; INTEGER BASIC HIMEM
+IBSOP           EQU          $CA                       ; INTEGER BASIC START OF CGM
+IBBRK           EQU          $E3E3                     ; BASIC BREAK
+IBGO            EQU          $E000                     ; BASIC ENTRY POINT
+IBCONT          EQU          $E003                     ; BASIC CONTINUE ENTRY POINT
+IBSOV           EQU          $CC                       ; BASIC START OF VARIABLES
+ASSOP           EQU          $67                       ; AS START OF PROGRAM
+ASEOP           EQU          $AF                       ; AS END OF PROGRAM
+ASEOP2          EQU          $69                       ; AS END-OF PGM 2
+ASHM1           EQU          $73                       ; AS HIGH MEM 1
+ASHM2           EQU          $6F                       ; AS HIGH MEM 2
+ASRNX           EQU          $D6                       ;AS RUN-ONLY FLAG
+ASONERR         EQU          $D8                       ;AS ON-ERR GOTO FLAG
+ASLMEM          EQU          ASSOP                     ; AS LOW MEM
+ASBRK1          EQU          $D865                     ; AS ROM BREAK
+ASBRK2          EQU          $1067                     ; AS RAM BREAK
+ASCNTU1         EQU          $D43C
+ASCNTU2         EQU          $C3C
+ASRSEQ1         EQU          $D4F2
+ASRSEQ2         EQU          $CF2
+AITSTL          EQU          $E000                     ; AS 1 IB TEST LOC
+ATSTV           EQU          $4C                       ; AS TEST VALUE
+ITSTV           EQU          $20                       ; IB TEST VALUE
+BOOTSL          EQU          $2E                       ; BOOT FROM SLOT
+ZPGFCB          EQU          $42                       ; ZERO PAGE WORK CELL
+MONRST          EQU          $FF65                     ;MONITOR RESET ENTRY
+MONBRK          EQU          $FA59                     ;MONITOR BREAK FUNCTION
+IORTS           EQU          $FF58                     ;KNOWN RTS IN MONITOR ROM
+HOME            EQU          $FC58
+PRINT           EQU          $FDED
+GETKEY          EQU          $FD0C
+INSDS2          EQU          $F88E
+LENGTH          EQU          $2F
+ZRSET           EQU          $3F2                      ;NEW MONITOR ROM RESET VECTOR
+PWCNST          EQU          $3F4                      ;NEW MONITOR ROM POWER UP CONSTANT
+                REP          40
+*
+*
+                ORG          ORIGIN
+*
+*
+                REP          40
+                PAGE
+BEGIN           JMP          DBINIT
+;
+DOSREL          EQU          *
+;
+;GET RELOCATION PARMS
+;
+DR0             EQU          *
+LOC1            EQU          $26
+                LDA          #$BF                      ; START AT BF00
+                STA          ZPGWRK+1                  ; TO LOOK FOR
+                LDX          #0                        ; HIGH RAM
+                STX          ZPGWRK
+DR0A            LDY          #0                        ; APPLE TEST
+DR1B            EQU          *
+                LDA          (ZPGWRK,X)
+                STA          LOC1
+DR1             TYA
+                EOR          LOC1
+                STA          LOC1
+                TYA
+                EOR          (ZPGWRK,X)
+                STA          (ZPGWRK,X)
+                CMP          LOC1
+                BNE          DR1A
+                INY
+                BNE          DR1
+                BEQ          DR2                       ; BR IF TOOK
+DR1A            EQU          *
+                DEC          ZPGWRK+1                  ; NOT RAM
+                BNE          DR0A                      ; TRY NEXT PAGE
+;
+DR2             EQU          *
+;
+                LDA          ZPGWRK+1                  ;BEGIN PATCH TO INSURE   *****
+                AND          #$DF                      ; PROPER HIGH MEMORY CHECK.
+                STA          ZPGFCB+1                  ;(DOS MASTER 3.1 CONTAINS
+                STX          ZPGFCB                    ; THIS ROUTINE STARTING AT LOCATION
+                LDA          (ZPGFCB,X)                ; $3540)
+                PHA
+                STA          LOC1                      ;SAVE TEST VALUE
+DR2A            TYA                                    ;(FIRST TIME Y=0)
+                EOR          LOC1                      ;TEST EACH (ALLEDGED) MEMORY BYTE
+                STA          LOC1                      ; 256 TIMES TO DETERMINE IF
+                TYA                                    ; IT IS REALLY GOOD MEMORY AND
+                EOR          (ZPGWRK,X)                ; MIRRORED 8K LOWER IN RAM.
+                STA          (ZPGFCB,X)
+                CMP          LOC1                      ;DID IT PASS THIS TIME?
+                BNE          DR2B                      ; BYTE NOT MIRRORED, THEN GOOD MEMORY
+                INY                                    ;MAYBE IT WAS COINCIDENCE
+                BNE          DR2A                      ;BRANCH UNLESS IT'S MATCHED 256 TIMES
+                LDY          ZPGFCB+1                  ;HIMEM IS 8K LOWER THAN WAS
+                PLA                                    ;ORIGINALLY THOUGHT!
+                JMP          DR2C
+DR2B            PLA                                    ;ORIGINAL HIMEM PROVED GOOD
+                STA          (ZPGFCB,X)                ;RESTORE BYTE ORIGINALLY MESSED WITH.
+                LDY          ZPGWRK+1                  ;END OF PATCH   *****
+DR2C            INY                                    ; NEW END OF DOS
+                STY          NEPAGE
+                SEC
+                TYA
+                SBC          DOSLNG                    ; MINUS DOS LENGTH
+                STA          NSPAGE                    ; IS NEW START OF DOS
+                SEC
+                SBC          RSPAGE                    ; MINUS OLD DOS START
+                BEQ          BEGIN                     ; (BREIF NO DELTA)
+                STA          DELTA                     ; IS DELTA
+                LDA          RSPAGE                    ; RESET START PAGE TO NORMAL
+                STA          ASTART+1
+;
+                LDA          #<DBINIT                  ; RESET PI RTN TO NORMAL
+                STA          DI3+2
+                LDA          #>DBINIT
+                STA          DI3+1
+;
+;RELOCATE ADR TABLES
+;
+                LDX          #0
+                STX          ZPGWRK
+DR3             EQU          *
+                LDA          ADRTAB+1,X
+                TAY
+                LDA          ADRTAB+2,X
+                STA          ZPGWRK+1
+                JMP          DR5
+;
+DR4             EQU          *
+                CLC
+                LDA          (ZPGWRK),Y
+                ADC          DELTA
+                STA          (ZPGWRK),Y
+                INY
+                BNE          DR5
+                INC          ZPGWRK+1
+DR5             INY
+                BNE          DR6
+                INC          ZPGWRK+1
+;
+DR6             EQU          *
+                LDA          ZPGWRK+1
+                CMP          ADRTAB+4,X
+                BCC          DR4
+                TYA
+                CMP          ADRTAB+3,X
+                BCC          DR4
+;
+                TXA
+                CLC
+                ADC          #4
+                TAX
+                CPX          ADRTAB
+                BCC          DR3
+                PAGE
+;
+;RELOCATE CODE
+;
+                LDX          #0
+DR7             STX          TEMP1
+;
+                LDA          CDETAB+1,X                ; GET A START OF CODE ADR
+                STA          ZPGWRK                    ; PUT IN ZPG
+                LDA          CDETAB+2,X
+                STA          ZPGWRK+1
+;
+DR8             LDX          #0
+                LDA          (ZPGWRK,X)                ; GET OP CODE
+                JSR          INSDS2                    ; GO FIND OUT HOW LONG
+;
+                LDY          LENGTH                    ; GET HOW LONG
+                CPY          #2                        ; IF IT AIN'T
+                BNE          DR9                       ; 3 THEN DON'T RELOC
+                LDA          (ZPGWRK),Y                ; GET PAGE FROM INST
+                CMP          RSPAGE                    ; IF PAGE < REL START
+                BCC          DR9                       ; THEN IGNOR
+                CMP          REPAGE                    ; IF PAGE >= REL END
+                BCS          DR9                       ; THEN IGNORE
+                ADC          DELTA                     ; ELSE ADD DELTA
+                STA          (ZPGWRK),Y                ; TO RELOCATE
+;
+DR9             SEC
+                LDA          LENGTH                    ; ADD LENGTH
+                ADC          ZPGWRK                    ; TO PC
+                STA          ZPGWRK
+                LDA          #0
+                ADC          ZPGWRK+1
+                STA          ZPGWRK+1
+;
+                LDX          TEMP1                     ; CHECK FOR END
+                CMP          CDETAB+4,X                ; OF CODE SEGMENT
+                BCC          DR8                       ; BR NOT END
+                LDA          ZPGWRK
+                CMP          CDETAB+3,X
+                BCC          DR8                       ; BR NOT END
+;
+                TXA
+                CLC
+                ADC          #4                        ; INCREMENT TABLE INDEX
+                TAX
+                CPX          CDETAB                    ; DONE
+                BCC          DR7                       ; BR IF NOT
+;
+                PAGE
+;
+;MOVE TO RELOCATED CODE
+;
+                LDA          #<ENDOFDOS-$80
+                STA          ZPGWRK+1                  ; ZPGWRK=FROM
+                LDY          NEPAGE
+                DEY
+                STY          ZPGFCB+1                  ; ZPGFCB = TOO
+                LDA          #0
+                STA          ZPGWRK
+                STA          ZPGFCB
+                TAY
+;
+DR10            LDA          (ZPGWRK),Y                ; BYTE FROM
+                STA          (ZPGFCB),Y                ; BYTE TO
+                INY                                    ; INCREMENT
+                BNE          DR10                      ; BR NOT FULL PAGE
+                DEC          DPGCNT                    ; DECREMENT PAGE CNT
+                BEQ          DR11                      ; BR IF DONE
+                DEC          ZPGWRK+1                  ; INC FROM PAGE
+                DEC          ZPGFCB+1                  ; INC TOO PAGE
+                BNE          DR10                      ; MOVE PAGE
+;
+DR11            JMP          DBVECT+3                  ; DONE
+                PAGE
+ADRTAB          DFB          9*4
+                DW           SAT1
+                DW           EAT1
+                DW           RUN
+                DW           RUN+2
+                DW           IBVT+2
+                DW           IBVT+4
+                DW           AS1VT
+                DW           AS1VT+4
+                DW           AS2VT
+                DW           AS2VT+4
+                DW           AS2VT+6
+                DW           AS2VT+8
+                DW           SAT2
+                DW           EAT2
+                DW           BAIOB
+                DW           ADOSLD+2
+                DW           IBDCTP
+                DW           IBDCTP+2
+                DFB          0,0,0,0
+                DFB          0,0,0,0
+                DFB          0,0,0,0
+CDETAB          EQU          *
+                DFB          8*4
+                DW           SC1
+                DW           EC1
+                DW           SC2
+                DW           EC2
+                DW           SC3
+                DW           EC3
+                DW           SWADR1
+                DW           EWADR1
+                DW           ASC1
+                DW           AEC1
+                DW           PSC1
+                DW           PEC1
+                DW           ASC2
+                DW           AEC2
+                DW           SDP1
+                DW           EDP1
+RSPAGE          DFB          <START
+REPAGE          DFB          <ENDOFDOS
+;
+NSPAGE          DFB          0
+NEPAGE          DFB          0
+;
+DOSLNG          DFB          <ENDOFDOS-START
+;
+DELTA           DFB          0
+DPGCNT          DFB          <ENDOFDOS-START
+                PAGE
+
+; ####################################################################################################
+; #   END OF FILE:  RELOCTR
+; #   LINES      :  337
+; #   CHARACTERS :  14207
+; #   Formatter  :  Assembly Language Reformatter 1.0.2 (07 January 1998)
+; ####################################################################################################

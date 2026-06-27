@@ -1,0 +1,335 @@
+; ####################################################################################################
+; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
+; #   FILE NAME:  RWTSONE
+; ####################################################################################################
+
+                SBTL         '16-SECTOR RWTS'
+****************************
+*         DISK II          *
+* READ/WRITE TRACK-SECTOR  *
+*                          *
+*   COPYRIGHT 1978 BY      *
+*  APPLE COMPUTER, INC.    *
+*                          *
+*  ALL RIGHTS RESERVED     *
+*                          *
+*      R. WIGGINTON        *
+*                          *
+*  MODIFIED: 07/13/79      *
+*     R. AURICCHIO         *
+*  ADDED WAIT-SEEK WHEN    *
+*   POWERING-UP MOTOR.     *
+*                          *
+*  MODIFIED: 10/25/79      *
+*     R. AURICCHIO         *
+*  ADDED DIAGMODE DISPLAYS *
+*   FOR ACTIVITY ANALYSIS. *
+****************************
+ASC2            EQU          *                         ;TELL RELOCTR WHERE RWTS BEGINS
+*********************************
+MOTOROFF        EQU          $C088
+MOTORON         EQU          $C089
+DRV1EN          EQU          $C08A
+DRV2EN          EQU          $C08B
+******************************
+* STATE MACHINE CONTROLS
+* Q6   Q7   FUNCTION
+* --   --   --------
+* LO   LO   READ
+* HI   LO   SENSE WRITE PROTECT
+* LO   HI   WRITE
+* HI   HI   WRITE LOAD
+******************************
+DRV1TRK         EQU          $478
+DRV2TRK         EQU          $4F8
+IOBPL           EQU          $48
+IOBPH           EQU          $49
+SLOT            EQU          $5F8                      ;HOLDS SLOT NUM USED
+PTRSDEST        EQU          $3C
+DEVCTBL         EQU          PTRSDEST
+DRIVNO          EQU          $35
+MONTIME         EQU          $46
+SECT            EQU          CSSTV+1
+TRACK           EQU          CSSTV+2
+VOLUME          EQU          CSSTV+3
+MAXSEEKS        EQU          4                         ;MAX FOR SEEKCNT
+SEEKCNT         EQU          $4F8                      ;# RESEEKS BEFORE RECALIBRATE
+RETRYCNT        EQU          $578
+RECALCNT        EQU          $6F8                      ;# RECALIBRATES -1
+                PAGE
+                LST          OFF
+                DO           DIAGMODE
+*
+* DIAGMODE EQUATES...
+*
+SP              EQU          $A0                       ;SPACE (INDICATOR OFF)
+TD              EQU          4                         ;DISPL BETWEEN CHARS
+TC1             EQU          $1E                       ;^ - RWTS ACTIVE
+TL1             EQU          $07D0
+TC2             EQU          $0D                       ;M - MOTOR STARTUP
+TL2             EQU          TL1+TD
+TC3             EQU          $13                       ;S - SEEK IN PROGRESS
+TL3             EQU          TL2+TD
+TC4             EQU          $01                       ;A - READING ADDRESS
+TL4             EQU          TL3+TD
+TC5             EQU          $0C                       ;L - NOT DESIRED SECTOR (LATENCY)
+TL5             EQU          TL4+1
+TC6             EQU          $05                       ;E - ADDRESS ERROR
+TL6             EQU          TL5+1
+TC7             EQU          $10                       ;P - PRENIBBILIZING
+TL7             EQU          TL4+TD
+TC8             EQU          $17                       ;W - WRITING
+TL8             EQU          TL7+TD
+TC9             EQU          $12                       ;R - READING
+TL9             EQU          TL8+TD
+TC10            EQU          $05                       ;E - READ ERROR
+TL10            EQU          TL9+TD
+TC11            EQU          $0F                       ;O - POSTNIBBLIZING
+TL11            EQU          TL10+TD
+*
+SCOUNT          EQU          $2FE                      ;SECTORS-ACCESSED COUNT
+LCOUNT          EQU          $2FF                      ;LATENCY COUNT
+TL12            EQU          TL11+TD                   ;LATENCY POSITION
+                PAGE
+                FIN
+                LST          ON
+**************************
+*                        *
+*     READ/WRITE A       *
+*   TRACK AND SECTOR     *
+*                        *
+**************************
+*                        *
+*   ENTER WITH A & Y     *
+* REGISTERS POINTING TO  *
+* THE I/O CONTROL BLOCK  *
+* (THE 'IOB'). INSIDE    *
+* THE IOB:               *
+*                        *
+* IBTYPE: IOB TYPE CODE  *
+*       (SHOULD BE A 01) *
+*                        *
+* IBSLOT: CONTROLLER SLOT*
+*       NUMBER FOR THIS  *
+*       ACCESS.          *
+*                        *
+* IBDRVN: DRIVE NUMBER   *
+*       FOR THIS ACCESS  *
+*                        *
+* IBVOL: EXPECTED VOLUME *
+*      NUMBER. NOTE THAT *
+*      VOLUME 00 MATCHES *
+*      ANY VOLUME NUMBER *
+*                        *
+* IBTRK: TRACK TO USE    *
+*      THIS ACCESS       *
+*                        *
+* IBSECT: SECTOR NUMBER  *
+*       TO USE THIS TIME *
+*                        *
+* IBDCTP: POINTER TO THE *
+*       DEVICE CHARACTER-*
+*       ISTICS TABLE.    *
+*                        *
+* IBBUFP: POINTER TO THE *
+*       PLACE THE DATA IS*
+*       OR SHOULD BE.    *
+*                        *
+* IBDLEN: AMOUNT OF DATA *
+*       IN BYTES TO BE   *
+*       PROCESSED.       *
+*                        *
+* IBCMD: COMMAND CODE:   *
+*      0-> NULL COMMAND  *
+*      1-> READ SECTOR   *
+*      2-> WRITE SECTOR  *
+*      4-> FORMAT DISK   *
+*                        *
+* IBSTAT: ERROR CODE:    *
+*      0-> NO ERROR      *
+*    $10-> WRITE PROTECT *
+*    $20-> VOLUME ERROR  *
+*    $40-> DRIVE ERROR   *
+*    $80-> READ ERROR    *
+*                        *
+* IBSMOD: LOCATION TO    *
+*       RETURN THE VOLUME*
+*       NUMBER ACTUALLY  *
+*       FOUND.           *
+*                        *
+* IOBPSN: PREVIOUS SLOT  *
+*      NUMBER USED LAST  *
+*      ACCESS.           *
+*                        *
+* IOBPDN: PREVIOUS DRIVE *
+*      NUMBER USED LAST  *
+*      ACCESS.           *
+*                        *
+**************************
+*                        *
+* DEVICE CHARACTERISTICS *
+* TABLE DESCRIPTION:     *
+*                        *
+* DEVICE TYPE CODE       *
+*  (ZERO FOR DISK II)    *
+*                        *
+* NUMBER OF PHASES PER   *
+* TRACK (TWO FOR DISK II)*
+*                        *
+* MOTOR ON TIME IN 100   *
+* MICROSECOND INTERVALS  *
+* COMPLEMENTED. ($D8EF   *
+* FOR DISK II)           *
+*                        *
+**************************
+                PAGE
+RWTS            STY          IOBPL                     ;UPON ENTRY, A&Y POINT AT THE
+                STA          IOBPH                     ;I/O CONTROL BLOCK (IOB)
+                LST          OFF
+                DO           DIAGMODE
+                LDY          #TC1                      ;SAY WE'RE ACTIVE
+                STY          TL1
+                FIN
+                LST          ON
+                LDY          #2                        ;SET RECALIBRATE
+                STY          RECALCNT                  ; COUNT
+                LDY          #MAXSEEKS                 ;SET RESEEK
+                STY          SEEKCNT                   ; COUNT
+                LDY          #1                        ;GET SLOT # FOR THIS OPERATION
+                LDA          (IOBPL),Y
+                TAX
+                LDY          #$0F                      ;DID HE CHANGE SLOTS?
+                CMP          (IOBPL),Y
+                BEQ          SAMESLOT                  ;IF HE DIDN'T, GOOD FOR HIM!
+*
+* NOW ARE USING A DIFFERENT SLOT.
+* NOW WAIT FOR THIS DRIVE TO TURN OFF
+* TO SENSE MOTOR NOT SPINNING, DATA FROM DISK MUST
+* BE THE SAME FOR AT LEAST 96 MICROSECONDS
+                TXA                                    ;SAVE NEW SLOT #
+                PHA
+                LDA          (IOBPL),Y                 ;GET 'OLD SLOT NUMBER'
+                TAX
+                PLA
+                PHA                                    ;PUT BACK ON STACK
+                STA          (IOBPL),Y                 ;SAVE 'NEW SLOT NUMBER'
+                LDA          Q7L,X                     ;GO INTO READ MODE
+STILLON         LDY          #$08                      ;TO BE SURE, DATA MUST REMAIN
+                LDA          Q6L,X                     ;STABLE FOR 96 MICROSECONDS
+NOTSURE         CMP          Q6L,X                     ;DATA STILL CHANGING?
+                BNE          STILLON                   ;IF SO, STILL SPINNING
+                DEY
+                BNE          NOTSURE                   ;STABLE LONG ENOUGH? IF NOT, LOOP
+*
+* PREVIOUS SLOT'S DRIVE NOW OFF...
+*
+                PLA                                    ;RESTORE NEW SLOT #
+                TAX
+*
+* NOW CHECK IF THE MOTOR IS ON, THEN START IT
+*
+SAMESLOT        LDA          Q7L,X                     ;MAKE SURE IN READ MODE
+                LDA          Q6L,X
+                LDY          #8                        ;WE MAY HAFTA CHECK SEVERAL TIMES TO BE SURE
+CHKIFON         EQU          *
+                LDA          Q6L,X                     ;GET THE DATA
+                PHA                                    ;DELAY FOR DISK DATA TO CHANGE
+                PLA
+                PHA
+                PLA
+                STX          SLOT
+                CMP          Q6L,X                     ;CHECK RUNNING HERE
+                BNE          ITISON                    ;=>IT'S ON...
+                DEY                                    ;MAYBE WE DIDN'T CATCH IT
+                BNE          CHKIFON                   ; SO WE'LL TRY AGAIN
+*
+ITISON          EQU          *
+                PHP                                    ;SAVE TEST RESULTS
+                LDA          MOTORON,X                 ;TURN ON MOTOR REGARDLESS
+                LDY          #6                        ;MOVE OUT ALL POINTERS INTO ZPAGE
+PTRMOV          LDA          (IOBPL),Y
+                STA          PTRSDEST-6,Y
+                INY
+                CPY          #$0A                      ;MOVED ALL POINTERS?
+                BNE          PTRMOV
+                LDY          #3                        ;SET UP THE
+                LDA          (DEVCTBL),Y               ; MOTOR-ON TIME
+                STA          MONTIME+1
+                LDY          #2                        ;NOW GET PARAMS
+                LDA          (IOBPL),Y                 ;DETERMINE DRIVE ONE OR TWO
+                LDY          #$10                      ;SAME DRIVE USED BEFORE?
+                CMP          (IOBPL),Y
+                BEQ          OK                        ;IF SO, DON'T NECESSARILY WAIT FOR MOTOR
+                STA          (IOBPL),Y                 ;NOW USING THIS DRIVE
+                PLP                                    ;TELL HIM MOTOR WAS OFF
+                LDY          #$00                      ;SET ZERO FLAG
+                PHP
+OK              ROR          A                         ;BY GOING INTO THE CARRY
+                BCC          SD1                       ;SELECT DRIVE 2 !
+                LDA          DRV1EN,X                  ;ASSUME DRIVE 1 TO HIT
+                BCS          DRVSEL                    ;IF WRONG, ENABLE DRIVE 2 INSTEAD
+SD1             LDA          DRV2EN,X
+DRVSEL          EQU          *
+                ROR          DRIVNO                    ;SAVE SELECTED DRIVE
+*
+* DRIVE SELECTED. IF MOTORING-UP,
+*  WAIT BEFORE SEEKING...
+*
+                PLP                                    ;WAS THE MOTOR
+                PHP                                    ; PREVIOUSLY OFF?
+                BNE          NOWAIT                    ;=>NO, FORGET WAITING.
+                LDY          #7                        ;YES, DELAY 150 MS
+SEEKW           JSR          MSWAIT
+                DEY
+                BNE          SEEKW
+                LDX          SLOT                      ;RESTORE SLOT NUMBER
+*
+NOWAIT          EQU          *
+*
+* SEEK TO DESIRED TRACK...
+*
+                LDY          #4                        ;SET TO IOBTRK
+                LDA          (IOBPL),Y                 ;GET DESIRED TRACK
+                JSR          MYSEEK                    ;SEEK!
+*
+* SEE IF MOTOR WAS ALREADY SPINNING.
+*
+                PLP                                    ;WAS MOTOR ON?
+                BNE          TRYTRK                    ;IF SO, DON'T DELAY, GET IT TODAY!
+*
+*  WAIT FOR MOTOR SPEED TO COME UP.
+*
+                LST          OFF
+                DO           DIAGMODE
+                LDY          #TC2                      ;SAY 'MOTOR COMING ON'
+                STY          TL2
+                LDY          #0                        ;CLEAR SECTOR AND
+                STY          SCOUNT                    ; LATENCY COUNTERS
+                STY          LCOUNT
+                LDY          #SP                       ;SHUT OFF THE
+                STY          TL12                      ; LATENCY INDICATOR
+                FIN
+                LST          ON
+                LDY          MONTIME+1                 ;IF MOTORTIME IS POSITIVE,
+                BPL          MOTORUP                   ; THEN SEEK WASTED ENUFF TIME FOR US
+MOTOF           LDY          #$12                      ;DELAY 100 USEC PER COUNT
+CONWAIT         DEY
+                BNE          CONWAIT
+                INC          MONTIME
+                BNE          MOTOF
+                INC          MONTIME+1
+                BNE          MOTOF                     ;COUNT UP TO $0000
+MOTORUP         EQU          *
+                LST          OFF
+                DO           DIAGMODE
+                LDY          #SP                       ;SAY 'MOTOR RUNNING'
+                STY          TL2
+                FIN
+                LST          ON
+
+; ####################################################################################################
+; #   END OF FILE:  RWTSONE
+; #   LINES      :  323
+; #   CHARACTERS :  12866
+; #   Formatter  :  Assembly Language Reformatter 1.0.2 (07 January 1998)
+; ####################################################################################################

@@ -1,0 +1,176 @@
+; ####################################################################################################
+; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
+; #   FILE NAME:  CMDTBLS
+; ####################################################################################################
+
+                PAGE
+;
+; COMMAND NAME TABLE
+;
+EC1             EQU          *
+CMDNTB          EQU          *
+                DCI          "INIT"
+                DCI          "LOAD"
+                DCI          "SAVE"
+                DCI          "RUN"
+                DCI          "CHAIN"
+                DCI          "DELETE"
+                DCI          "LOCK"
+                DCI          "UNLOCK"
+                DCI          "CLOSE"
+                DCI          "READ"
+                DCI          "EXEC"
+                DCI          "WRITE"
+                DCI          "POSITION"
+                DCI          "OPEN"
+                DCI          "APPEND"
+                DCI          "RENAME"
+                DCI          "CATALOG"
+                DCI          "MON"
+                DCI          "NOMON"
+                DCI          "PR#"
+                DCI          "IN#"
+                DCI          "MAXFILES"
+                DCI          "FP"
+                DCI          "INT"
+                DCI          "BSAVE"
+                DCI          "BLOAD"
+                DCI          "BRUN"
+                DCI          "VERIFY"
+                DFB          0
+                PAGE
+;
+; COMMAND SYNTAX OP EQUATES FOR SYNTAX BYTE ONE
+;
+NPB             EQU          $80                       ; NO PARMS OK, COMMAND GOES TO BASIC
+NPE             EQU          $40                       ; NO PARMS OK, COMMAND TO EXECUTION RTN
+FN1             EQU          $20                       ; FILE NAME1 REGD
+FN2             EQU          $10                       ; FILE NAME2 REQD
+NUM1            EQU          $08                       ; NUMERIC 0-7 REGD
+NUM2            EQU          $04                       ; NUMERIC 1-10 REQD
+RNONLY          EQU          $02                       ; RUN TIME ONLY FLAG.
+CREFLG          EQU          $01                       ; FLAG TO INDICATE CMDS THAT MAY CREATE FILES
+;
+; COMMAND SYNTAX OP EQUATES FOR SYNTAX BYTE TWO
+;
+V               EQU          $40                       ; VOLUME ALLOWED
+D               EQU          $20                       ; DRIVE ALLOWED
+S               EQU          $10                       ; SLOT ALLOWED
+L               EQU          $08                       ; LENGTH ALLOWED
+R               EQU          $04                       ; RECORD NUMBER ALLOWED
+B               EQU          $02                       ; BYTE NUMBER ALLOWED
+ADR             EQU          $01                       ; ADDRESS
+CIO             EQU          $80                       ; C,I, OR O ALLOWED
+;
+; COMMAND SYNTAX TABLE
+; EACH COMMAND HAS TWO BYTE ENTRY
+;
+CMDSTB          EQU          *
+                DFB          FN1+CREFLG,V+D+S          ; INIT
+                DFB          NPB+FN1,V+D+S             ; LOAD
+                DFB          NPB+FN1+CREFLG,V+D+S      ; SAVE
+                DFB          NPB+FN1,V+D+S             ; RUN
+                DFB          FN1,V+D+S                 ; CHAIN
+                DFB          FN1,V+D+S                 ; DELETE
+                DFB          FN1,V+D+S                 ; LOCK
+                DFB          FN1,V+D+S                 ; UNLOCK
+                DFB          NPE+FN1,0                 ; CLOSE
+                DFB          FN1+RNONLY,B+R            ; READ
+                DFB          FN1,R+V+D+S               ; EXEC
+                DFB          FN1+RNONLY,B+R            ; WRITE
+                DFB          FN1+RNONLY,R              ; POSITION
+                DFB          FN1+RNONLY+CREFLG,L+V+D+S ; OPEN
+                DFB          FN1+RNONLY,V+D+S          ; APPEND
+                DFB          FN1+FN2,V+D+S             ; RENAME
+                DFB          NPE,V+D+S                 ; CATALOG
+                DFB          NPE,CIO                   ; MONITOR
+                DFB          NPE,CIO                   ; NO MONITOR
+                DFB          NUM1,0                    ; PR#
+                DFB          NUM1,0                    ; IN#
+                DFB          NUM2,0                    ; MAXFILES
+                DFB          NPE,V+D+S                 ; APPLESOFT
+                DFB          NPE,0                     ; INT
+                DFB          FN1+CREFLG,V+D+S+ADR+L    ; BSAVE
+                DFB          FN1,V+D+S+ADR             ; BLOAD
+                DFB          FN1,V+D+S+ADR             ; BRUN
+                DFB          FN1,V+D+S                 ; VERIFY
+                PAGE
+;
+; OPTAB - OPTIONAL PARMS SYNTAX TABLES
+;
+OPTAB1          EQU          *
+                DFB          'V'+$80,'D'+$80,'S'+$80,'L'+$80'
+                DFB          'R'+$80,'B'+$80,'A'+$80,'C'+$80'
+                DFB          'I'+$80,'O'+$80'
+OPT1L           EQU          *-OPTAB1
+MI              EQU          $20
+MO              EQU          $10
+OPTAB2          EQU          *
+                DFB          V,D,S,L
+                DFB          R,B,ADR,CIO+MC
+                DFB          CIO+MI,CIO+MO
+OPTAB3          EQU          *
+                DW           0
+                DW           254                       ; VOL RANGE
+                DW           1
+                DW           2                         ; DRIVE RANGE
+                DW           1
+                DW           7                         ; SLOT RANGE
+                DW           1
+                DW           32767                     ; LENGTH RANGE
+                DW           0
+                DW           32767                     ; REC NO RANGE
+                DW           0
+                DW           32767                     ; REC BYTE NO RANGE
+                DW           0
+                DW           $FFFF                     ; ADDRESS RANGE
+                PAGE
+;
+; ERROR MESSAGE TABLES
+;
+EMSG            EQU          *
+                DFB          $0D,$07,$8D
+EM1             EQU          *-EMSG
+                DCI          "LANGUAGE NOT AVAILABLE"
+EM2             EQU          *-EMSG
+EM3             EQU          *-EMSG
+                DCI          "RANGE ERROR"
+EM4             EQU          *-EMSG
+                DCI          "WRITE PROTECTED"
+EM5             EQU          *-EMSG
+                DCI          "END OF DATA"
+EM6             EQU          *-EMSG
+                DCI          "FILE NOT FOUND"
+EM7             EQU          *-EMSG
+                DCI          "VOLUME MISMATCH"
+EM8             EQU          *-EMSG
+                DCI          "I/O ERROR"
+EM9             EQU          *-EMSG
+                DCI          "DISK FULL"
+EM10            EQU          *-EMSG
+                DCI          "FILE LOCKED"
+EM11            EQU          *-EMSG
+                DCI          "SYNTAX ERROR"
+EM12            EQU          *-EMSG
+                DCI          "NO BUFFERS AVAILABLE"
+EM13            EQU          *-EMSG
+                DCI          "FILE TYPE MISMATCH"
+EM14            EQU          *-EMSG
+                DCI          "PROGRAM TOO LARGE"
+;
+EM15            EQU          *-EMSG
+                DCI          "NOT DIRECT COMMAND"
+                DFB          $8D
+EMDTB           EQU          *
+                DFB          0,EM1,EM2,EM3
+                DFB          EM4,EM5,EM6,EM7
+                DFB          EM8,EM9,EM10,EM11
+                DFB          EM12,EM13,EM14
+                DFB          EM15
+
+; ####################################################################################################
+; #   END OF FILE:  CMDTBLS
+; #   LINES      :  164
+; #   CHARACTERS :  7084
+; #   Formatter  :  Assembly Language Reformatter 1.0.2 (07 January 1998)
+; ####################################################################################################
