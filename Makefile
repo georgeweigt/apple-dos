@@ -13,7 +13,8 @@ check: asm
 	./asm apple-dos.s "Apple DOS 3.3 January 1983.dsk"
 
 clean:
-	rm -f asm src/asm apple-dos-orig.s patchfile tools/make-prototypes
+	make -C tools clean
+	rm -f asm src/asm apple-dos-orig.s patchfile
 
 all:
 	make asm
