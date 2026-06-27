@@ -23,10 +23,12 @@ SRC =	Apple\ DOS\ 3.3C\ Source\ Code/DOS33C.pretty \
 	Apple\ DOS\ 3.3C\ Source\ Code/XOPNCLS.pretty \
 	Apple\ DOS\ 3.3C\ Source\ Code/XLODSAV.pretty \
 	Apple\ DOS\ 3.3C\ Source\ Code/XMISCMD.pretty \
+	Apple\ DOS\ 3.3C\ Source\ Code/DOSGOER.pretty \
 	Apple\ DOS\ 3.3C\ Source\ Code/BLDFTAB.pretty \
 	Apple\ DOS\ 3.3C\ Source\ Code/CMDTBLS.pretty \
 	Apple\ DOS\ 3.3C\ Source\ Code/FDOSENT.pretty \
 	Apple\ DOS\ 3.3C\ Source\ Code/FOPCLRW.pretty \
+	Apple\ DOS\ 3.3C\ Source\ Code/FDELCAT.pretty \
 	Apple\ DOS\ 3.3C\ Source\ Code/FMTRWIO.pretty \
 	Apple\ DOS\ 3.3C\ Source\ Code/FLOCNXB.pretty \
 	Apple\ DOS\ 3.3C\ Source\ Code/FLOCSEC.pretty \

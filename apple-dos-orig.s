@@ -1993,6 +1993,233 @@ MVEFTA          EQU          *
 ; ####################################################################################################
 ; ####################################################################################################
 ; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
+; #   FILE NAME:  DOSGOER
+; ####################################################################################################
+
+                PAGE
+;
+; DOSGO - GOTO DOS
+;
+DOSGO           EQU          *
+                JSR          DOSENT                    ; GO TO DOS
+                BCC          DG3                       ; BR IF NOT ERROR
+;
+                LDA          CCBSTA                    ;GET RETURN CODE
+                CMP          #5
+                BEQ          YESEOF
+                JMP          CLOSFILE                  ;NO. CLOSE & COMPLAIN
+YESEOF          JMP          EOFFIX                    ;MABYE FIX IT UP?
+                NOP
+***************************
+*
+* DOS 3.3  (REV B) PATCH
+*
+***************************
+                DO           DOS33B
+DOSGO2A         JSR          MOVEOF                    ; MOVE END OF FILE PATCH
+                ELSE
+                NOP
+DOSGO2A         NOP
+                NOP
+                FIN
+                LDX          #0                        ; SET OTHER EIF
+                STX          CCBDAT                    ; DONE
+DG3             RTS
+;
+                PAGE
+;
+; ERROR ROUTINE
+;
+ESYNTX          LDA          #CREFLK+1
+                BNE          ERROR
+ENFA            LDA          #CREFLK+2
+                BNE          ERROR
+MFERR           LDA          #CREFLK+4
+                BNE          ERROR
+ETYP            EQU          *
+ERNU1           LDA          #CREFLK+3
+;
+ERROR           EQU          *
+                STA          SVA                       ; SAVE MSG NUMBER
+                JSR          CLRSTS1                   ;PATCH TO CLR RSTATE TOO (WAS JSR CLRSTS)
+                LDA          ASIBSW                    ; GET AS/IN BASIC SWITCH
+                BEQ          ERNAS                     ; BR IF NOT APPLESOFT
+                LDA          ASONERR                   ;GET AS ERR FLAG
+                BMI          ERRTN                     ; BRT IF ON ERR IS GO
+ERNAS           EQU          *
+                LDX          #0
+                JSR          EMPR                      ; GO OUTPUT
+                LDX          SVA                       ; GET SAVE MSG
+                JSR          EMPR                      ; GO OUTPUT MSG
+                JSR          PRCRIF                    ;OUTPUT A CARRAGE RETURN AFTER MESSAGE
+ERRTN           JSR          MVCSW                     ; GO MOVE CHAR I/ SW
+                JSR          TSTRUN
+                LDX          SVA
+                LDA          #03
+                BCS          ERRTN1                    ;DON'T GOTO BREAK HANDLER IF NOT RUNNING
+                JMP          (BREAK)
+ERRTN1          JMP          (CONT)                    ;REENTER CONT IF NOT RUN
+;
+EMPR            EQU          *
+                LDA          EMDTB,X                   ; GET ITS DISPL
+                TAX                                    ; INTO X
+EMPR1           EQU          *
+                STX          TEMP1A                    ; SAVE DISPL
+                LDA          EMSG,X                    ; GET MSG CHAR
+                PHA                                    ; SAVE CHAR
+                ORA          #$80                      ; SET MSB ON
+                JSR          ORTN1                     ; OUTPUT CHAR
+                LDX          TEMP1A                    ; GET INDEX
+                INX                                    ; INCREMENT IT
+                PLA                                    ; RE-LOAD CHAR
+                BPL          EMPR1                     ; BR IF MORE CHARS
+                RTS                                    ; DONE
+                PAGE
+;
+; OPNSUP - OPEN SET UP
+;
+OPNSUP          EQU          *
+                LDA          CV                        ; VOLUME
+                STA          CCBVOL
+                LDA          CD                        ; DRIVE
+                STA          CCBDRV
+                LDA          CS                        ; SLOT
+                STA          CCBSLT
+                LDA          FN1ADR                    ; FILENAME 1 ADR
+                STA          CCBFN1
+                LDA          FN1ADR+1
+                STA          CCBFN1+1
+                LDA          ZPGWRK
+                STA          CFTABA
+                LDA          ZPGWRK+1
+                STA          CFTABA+1
+                RTS
+;
+; MVFN1 - MOVE FILE NAME 1 TO FILE PTR
+;
+MVFN1           EQU          *
+                LDY          #29
+MVFN1A          LDA          FNAME1,Y
+                STA          (ZPGWRK),Y
+                DEY
+                BPL          MVFN1A
+                RTS
+;
+; MVBUFP - MOVE BUFFER PTRS TO CCB
+;
+MVBUFP          EQU          *
+                LDY          #30
+MVBP1           LDA          (ZPGWRK),Y
+                STA          CCBFCB-30,Y
+                INY
+                CPY          #38
+                BNE          MVBP1
+                RTS
+;
+; CLRSTS - CLEAR STATES
+;
+CLRSTS          EQU          *
+                LDY          #0
+                STY          ISTATE
+                STY          OSTATE
+                RTS
+                PAGE
+;
+; FILSRC - SEARCH FOR FILE NAME1
+;
+FILSRC          EQU          *
+                LDA          #0                        ; CLEAR SV AVAIL
+                STA          CNUM+1
+;
+                JSR          TSINIT                    ; GO INIT SEARCH
+                JMP          FLS1A
+FLS1            JSR          TSNXT                     ; LOOK AT NEXT
+                BEQ          FLS4                      ; BR IF NO NEXT
+;
+FLS1A           JSR          TSTOPN                    ; GO TEST OPEN
+                BNE          FLS2                      ; BR IF OPEN
+;
+                LDA          ZPGWRK                    ; SAVE AVAIL ENTRY ADR
+                STA          CNUM
+                LDA          ZPGWRK+1
+                STA          CNUM+1
+                BNE          FLS1                      ; GO LOOK SOME MORE
+;
+FLS2            LDY          #29                       ; FILE HAD 30 CHARS
+FLS3            LDA          (ZPGWRK),Y                ; GET CHAR
+                CMP          FNAME1,Y                  TEST CHAR
+                BNE          FLS1                      ; BR NOT
+                DEY
+                BPL          FLS3                      ; LOOK AT 30 CHARS
+                CLC                                    ; FOUND
+                RTS                                    ; DONE
+;
+FLS4            SEC                                    ; NOT FOUND
+                RTS                                    ; DONE
+                PAGE
+;
+; TSINIT - INITIALIZE FOR FTAB SEARCH
+; TSNXT - GET NEXT FTAB ENTRY
+;
+TSINIT          EQU          *
+                LDA          FTAB                      ; GET 1ST PTR ADR
+                LDX          FTAB+1
+                BNE          TSST
+TSNXT           EQU          *
+                LDY          #37                       ; GET LINK
+                LDA          (ZPGWRK),Y
+                BEQ          TSR                       ; BR IF NO LINK
+;
+                TAX
+                DEY
+                LDA          (ZPGWRK),Y
+TSST            EQU          *
+                STX          ZPGWRK+1
+                STA          ZPGWRK
+                TXA                                    ; SET NE CC
+TSR             RTS                                    ; RTN
+;
+; TSTOPN - TST FOR OPEN FILE
+;
+TSTOPN          EQU          *
+                LDY          #0                        ; GET 1ST CHAR OF FN
+                LDA          (ZPGWRK),Y
+                RTS
+;
+; TSTEXC - TEST CURRENT FILE FOR EXECUTE
+;
+TSTEXC          EQU          *
+                LDA          ESTATE                    ; IF ESTATE = 0
+                BEQ          TXC1                      ; THEN NO EXECUTE FILE
+                LDA          EFTABA                    ; TEST CURRENT
+                CMP          ZPGWRK
+                BNE          TXC2                      ; IS NOT
+                LDA          EFTABA+1
+                CMP          ZPGWRK+1
+                BEQ          TXC2                      ; IS
+TXC1            DEX                                    ; IS NOT
+TXC2            RTS                                    ; DONE
+                PAGE
+;
+; TSTFUC - TEST FILE USE CODE FOR PGM
+;
+TSTFUC          EQU          *
+                EOR          CCBFUC
+                BEQ          TFUCR
+                AND          #$7F
+                BEQ          TFUCR
+                JSR          ECLOSE                    ; GO CLOSE THE SOB
+                JMP          ERNU1
+TFUCR           RTS
+
+; ####################################################################################################
+; #   END OF FILE:  DOSGOER
+; #   LINES      :  215
+; #   CHARACTERS :  8197
+; #   Formatter  :  Assembly Language Reformatter 1.0.2 (07 January 1998)
+; ####################################################################################################
+; ####################################################################################################
+; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
 ; #   FILE NAME:  BLDFTAB
 ; ####################################################################################################
 
@@ -2753,6 +2980,267 @@ PB0             PLA                                    ; GET SAVED BYTE
 ; #   END OF FILE:  FOPCLRW
 ; #   LINES      :  286
 ; #   CHARACTERS :  11685
+; #   Formatter  :  Assembly Language Reformatter 1.0.2 (07 January 1998)
+; ####################################################################################################
+; ####################################################################################################
+; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
+; #   FILE NAME:  FDELCAT
+; ####################################################################################################
+
+                PAGE
+;
+*   FLOCK - LOCK A FILE
+;
+FLOCK           LDA          #$80                      ; REMEMBER LOCK
+                STA          TEMP3
+                BNE          LCKGO
+;
+*   FUNLCK - UNLOCK A FILE
+;
+FUNLCK          LDA          #00                       ; REMEMBER UNLOCK
+                STA          TEMP3
+;
+LCKGO           EQU          *
+;
+                JSR          DOPEN                     ; GO OPEN FILE
+                LDX          TEMP1
+                LDA          VDFILE+2,X                ; GET FILE USE CODE
+                AND          #$7F                      ; TURN OFF LOCK
+                ORA          TEMP3
+                STA          VDFILE+2,X
+                JSR          WRVDIR
+GOGOOD          JMP          GOODIO
+;
+*   FPOSTN - POSITION A FILE
+FPOSTN          JSR          LOCSEC                    ; GO POSITION
+                JMP          GOODIO                    ; DONE
+;
+;
+*   FVAR - VARIFY A FILE
+;
+FVAR            EQU          *
+                JSR          DOPEN                     ; OPEN FILE
+VAR1            JSR          LOCNXB                    ; READ A SECTOR
+                BCS          GOGOOD                    ; BR IF EOF
+                INC          DCBCRS                    ; INCREMENT SECTOR
+                BNE          VAR1
+                INC          DCBCRS+1
+                JMP          VAR1                      ; READ THIS ONE
+                PAGE
+;
+*   FDEL - DELETE A FILE
+;
+FDEL            EQU          *
+                JSR          DOPEN                     ; GO OPEN FILE
+;
+FD2             LDX          TEMP1                     ; SAVED INDEX
+                LDA          VDFILE+2,X                ; IS FILE LOCKED
+                BPL          FD3                       ; BR NOT LOCKED
+                JMP          ERRR10
+;
+FD3             EQU          *
+                LDX          TEMP1                     ; GET SAVED INDEX
+                LDA          VDFILE,X                  ; GET DIR TRACK
+                STA          DCBFDT                    ; SET AS 1ST FD TRACK
+                STA          VDFILE+32,X               ; SAVE IN LC OF FN
+                LDA          #$FF                      ; DELETED FILE MARKER
+                STA          VDFILE,X                  ; CLEAR ENTRY
+                LDY          VDFILE+1,X                ; GET DIR SECTOR
+                STY          DCBFDS                    ; SET AS 1ST FD SEC
+                JSR          WRVDIR                    ; GO WRITE VOLUME DIR
+                CLC
+FD4             JSR          RDFDIR                    ; GET 1ST FILE DIR SECTOR
+                BCS          FD7                       ; BR IF NO MORE
+                JSR          MVFCBD                    ; MOVE DIR TO ZPG
+                LDY          #FDENT                    ; POINT Y TO 1ST SEC ENT
+FD5             STY          TEMP1                     ; SAVE Y
+                LDA          (ZPGFCB),Y                ; GET REACK
+                BMI          FD6                       ; BR IF NONE
+                BEQ          FD6                       ; BR IF END OF FILE
+                PHA                                    ; SAVE TRK
+                INY
+                LDA          (ZPGFCB),Y                ; GET SECTOR
+                TAY                                    ; TO Y
+                PLA                                    ; GET TRK
+                JSR          FDSUB                     ; GO FREE SECTOR
+FD6             LDY          TEMP1                     ; GET DIR INDEX
+                INY                                    ; INCR TO NEXT ENTRY
+                INY
+                BNE          FD5                       ; BR NOT DONE THIS DIR
+                LDA          DCBCDT                    ; GET THIS DIR TRK
+                LDY          DCBCDS                    ; AND SECTOR
+                JSR          FDSUB                     ; AND GO FREE IT
+                SEC                                    ; GO
+                BCS          FD4                       ; READ NEXT DIR
+FD7             EQU          *
+                JSR          WRVTOC
+                JMP          GOODIO
+;
+FDSUB           EQU          *
+                SEC                                    ; SET FOR RE USE OF SEC
+                JSR          FRESEC                    ; GO FREE SECTOR
+                LDA          #0                        ; CLEAR DCB BIT MAP
+                LDX          #5                        ;CLEAR ALL OF TRK BITMAP SO
+*     ;>16 SECTORS/TRK WILL WORK
+FDS1            STA          DCBALS,X
+                DEX
+                BPL          FDS1
+                RTS
+                PAGE
+;
+*   RDIR - PRINT DIRECTORY
+;
+RDIR            EQU          *
+                JSR          DCBSUP
+                LDA          #$FF
+                STA          DCBVOL
+                JSR          RDVTOC
+                LDA          #22                       ; SET 21 LINES
+                STA          TEMP2
+                JSR          PRCR                      ; GO PRINT
+                JSR          PRCR                      ; PRINT ANOTHER CHAR
+                LDX          #VML                      ; VOLUME MSG LENGTH
+RD0             LDA          VOLMES,X                  ; GET MSG CHAR
+                JSR          PRINT                     ; PRINT IT
+                DEX                                    ; DECREMENT COUNT
+                BPL          RD0                       ; BR IF MORE
+;
+                STX          CNUM+1
+                LDA          IBSMOD                    ; MOVE VOL NO FOR
+                STA          CNUM                      ; CONVERSION
+                JSR          PRNUM                     ; GO PRINT VOL NO
+;
+                JSR          PRCR                      ; PRINT CR
+                JSR          PRCR                      ; AND AGAIN
+;
+                CLC                                    ; FIRST RECORD
+;
+RD1             JSR          RDVDIR                    ; GO READ REC
+                BCS          RD5
+                LDX          #0                        ; SET INDEX=0
+RD2             STX          TEMP1                     ; SAVE INDEX
+                LDA          VDFILE,X                  ; GET TRACK
+                BEQ          RD5                       ; BR IF END OF DIR
+                BMI          RD4                       ; BR IF DELETED
+;
+                LDY          #$A0                      ; BLANK
+                LDA          VDFILE+2,X                ; GET TYPE
+                BPL          RD2A                      ; BR IF NOT LOCKED
+                LDY          #'*'+$80                  ; AST
+RD2A            TYA                                    ; ACU = AST OR BLANK
+                JSR          PRINT                     ; PRINT ACU
+;
+                LDA          VDFILE+2,X                ; GET TYPE
+                AND          #$7F                      ; MASK OUT MISC
+                LDY          #7                        ; SET INDEX = 7
+                ASL          A                         ;GET RID OF HI BIT
+RD2B            ASL          A                         ; SHIFT OUT MSB
+                BCS          RD2C                      ; BR IF TYPE BIT OUT
+                DEY                                    ; DEC INDEX
+                BNE          RD2B                      ; BR IF NOT ACC BITS
+RD2C            EQU          *
+                LDA          FTTAB,Y                   ; GET TYPE CODE
+                JSR          PRINT                     ; PRINT IT
+                LDA          #$A0                      ; BLANK
+                JSR          PRINT                     ; PRINT
+;
+                LDA          VDFILE+33,X               ; MOVE FILE LENGTH
+                STA          CNUM                      ; TO CNUM
+                LDA          VDFILE+34,X
+                STA          CNUM+1
+                JSR          PRNUM                     ; GO PRINT NUMBER
+                LDA          #$A0                      ; BLANK
+                JSR          PRINT                     ; PRINT
+;
+                INX
+                INX
+                INX
+                LDY          #29
+RD3             LDA          VDFILE,X                  ; GET CHAR
+                JSR          PRINT                     ; PRINT CHAR
+                INX
+                DEY
+                BPL          RD3
+RD3A            EQU          *
+                JSR          PRCR                      ; GO PRINT CR
+RD4             JSR          VDINC                     ; INCR INDEX
+                BCC          RD2                       ; BR IF MORE IN DIR
+                BCS          RD1                       ; GO READ NEXT DIR SECT
+;
+RD5             JMP          GOODIO                    ; DONE
+;
+PRCR            EQU          *
+                LDA          #$8D                      ; CR
+                JSR          PRINT                     ; PRINTED
+                DEC          TEMP2                     ; DEC LINE COUNTER
+                BNE          PRCR1                     ; BR IF NOT ZERO
+                JSR          GETKEY                    ; WAIT FOR INPUT
+                LDA          #21                       ; RESET LINE COUNTER
+                STA          TEMP2
+PRCR1           RTS                                    ; DONE
+                PAGE
+PRNUM           EQU          *
+                LDY          #2                        ; 3 DIGITS
+PRN1            LDA          #0                        ; INIT DIGIT TO ZERO
+                PHA                                    ; SAVE IT
+;
+PRN2            LDA          CNUM                      ; GET NUMBER
+                CMP          CVTAB,Y                   ; IF NUM < CVTAB ENTRY
+                BCC          PRN3                      ; THEN DONE THIS DIGIT
+;
+                SBC          CVTAB,Y                   ; SUBTRACT TABLE ENTRY
+                STA          CNUM                      ; FROM NUM
+                LDA          CNUM+1
+                SBC          #0
+                STA          CNUM+1
+                PLA                                    ; INCREMENT DIGIT
+                ADC          #0
+                PHA
+                JMP          PRN2                      ; TRY AGAIN
+;
+PRN3            EQU          *
+                PLA                                    ; GET DIGIT
+                ORA          #$B0                      ; ADD ASCII 0
+                JSR          PRINT                     ; PRINT IT
+                DEY                                    ; DECREMENT DIGIT COUNT
+                BPL          PRN1                      ; BR IF MORE DIGIT
+;
+                RTS                                    ; DONE
+                PAGE
+;
+*   CLCFCB - GET FCB VIA INDEX AND MOVE IT
+;
+CLCFCB          EQU          *
+;
+                JSR          MVFCBP                    ; MOVE FCB PTR TO ZPG
+                LDY          #0
+                STY          CCBSTA
+CF3             LDA          (ZPGFCB),Y                ; MOVE FCB TO
+                STA          FCB,Y                     ; FCB WORK AREA
+                INY
+                CPY          #FCBLEN
+                BNE          CF3
+;
+                CLC                                    ; DONE
+                RTS
+;
+*   RTNFCB - MOVE FCB FROM WORK AREA TO FCB
+;
+RTNFCB          EQU          *
+                JSR          MVFCBP                    ; MOVE FCB ADR TO ZPG
+;
+                LDY          #0
+RF1             LDA          FCB,Y
+                STA          (ZPGFCB),Y
+                INY
+                CPY          #FCBLEN
+                BNE          RF1
+                RTS
+
+; ####################################################################################################
+; #   END OF FILE:  FDELCAT
+; #   LINES      :  249
+; #   CHARACTERS :  11371
 ; #   Formatter  :  Assembly Language Reformatter 1.0.2 (07 January 1998)
 ; ####################################################################################################
 ; ####################################################################################################

@@ -1,4 +1,4 @@
---- apple-dos-orig.s	2026-06-27 11:19:38
+--- apple-dos-orig.s	2026-06-27 11:45:25
 +++ apple-dos.s	2026-06-27 11:21:23
 @@ -1,44 +1,48 @@
 +;;; This file has the append fix removed to match the January 1983 disk image.
@@ -475,237 +475,87 @@
  ;
  ; NXTEXC - NEXT EXECUTE CHAR
  ;
-@@ -1993,10 +1997,237 @@
+@@ -1996,7 +2000,7 @@
+ ; #   FILE NAME:  DOSGOER
  ; ####################################################################################################
- ; ####################################################################################################
- ; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
-+; #   FILE NAME:  DOSGOER
-+; ####################################################################################################
-+
+ 
+-                PAGE
 +;;;                PAGE
-+;
-+; DOSGO - GOTO DOS
-+;
-+DOSGO           EQU          *
-+                JSR          DOSENT                    ; GO TO DOS
-+                BCC          DG3                       ; BR IF NOT ERROR
-+;
-+                LDA          CCBSTA                    ;GET RETURN CODE
-+                CMP          #5
-+                BEQ          YESEOF
-+                JMP          CLOSFILE                  ;NO. CLOSE & COMPLAIN
-+YESEOF          JMP          EOFFIX                    ;MABYE FIX IT UP?
-+                NOP
-+***************************
-+*
-+* DOS 3.3  (REV B) PATCH
-+*
-+***************************
+ ;
+ ; DOSGO - GOTO DOS
+ ;
+@@ -2015,18 +2019,18 @@
+ * DOS 3.3  (REV B) PATCH
+ *
+ ***************************
+-                DO           DOS33B
 +;;;                DO           DOS33B
-+DOSGO2A         JSR          MOVEOF                    ; MOVE END OF FILE PATCH
+ DOSGO2A         JSR          MOVEOF                    ; MOVE END OF FILE PATCH
+-                ELSE
+-                NOP
+-DOSGO2A         NOP
+-                NOP
+-                FIN
 +;;;                ELSE
 +;;;                NOP
 +;;;DOSGO2A         NOP
 +;;;                NOP
 +;;;                FIN
-+                LDX          #0                        ; SET OTHER EIF
-+                STX          CCBDAT                    ; DONE
-+DG3             RTS
-+;
+                 LDX          #0                        ; SET OTHER EIF
+                 STX          CCBDAT                    ; DONE
+ DG3             RTS
+ ;
+-                PAGE
 +;;;                PAGE
-+;
-+; ERROR ROUTINE
-+;
-+ESYNTX          LDA          #CREFLK+1
-+                BNE          ERROR
-+ENFA            LDA          #CREFLK+2
-+                BNE          ERROR
-+MFERR           LDA          #CREFLK+4
-+                BNE          ERROR
-+ETYP            EQU          *
-+ERNU1           LDA          #CREFLK+3
-+;
-+ERROR           EQU          *
-+                STA          SVA                       ; SAVE MSG NUMBER
-+                JSR          CLRSTS1                   ;PATCH TO CLR RSTATE TOO (WAS JSR CLRSTS)
-+                LDA          ASIBSW                    ; GET AS/IN BASIC SWITCH
-+                BEQ          ERNAS                     ; BR IF NOT APPLESOFT
-+                LDA          ASONERR                   ;GET AS ERR FLAG
-+                BMI          ERRTN                     ; BRT IF ON ERR IS GO
-+ERNAS           EQU          *
-+                LDX          #0
-+                JSR          EMPR                      ; GO OUTPUT
-+                LDX          SVA                       ; GET SAVE MSG
-+                JSR          EMPR                      ; GO OUTPUT MSG
-+                JSR          PRCRIF                    ;OUTPUT A CARRAGE RETURN AFTER MESSAGE
-+ERRTN           JSR          MVCSW                     ; GO MOVE CHAR I/ SW
-+                JSR          TSTRUN
-+                LDX          SVA
-+                LDA          #03
-+                BCS          ERRTN1                    ;DON'T GOTO BREAK HANDLER IF NOT RUNNING
-+                JMP          (BREAK)
-+ERRTN1          JMP          (CONT)                    ;REENTER CONT IF NOT RUN
-+;
-+EMPR            EQU          *
-+                LDA          EMDTB,X                   ; GET ITS DISPL
-+                TAX                                    ; INTO X
-+EMPR1           EQU          *
-+                STX          TEMP1A                    ; SAVE DISPL
-+                LDA          EMSG,X                    ; GET MSG CHAR
-+                PHA                                    ; SAVE CHAR
-+                ORA          #$80                      ; SET MSB ON
-+                JSR          ORTN1                     ; OUTPUT CHAR
-+                LDX          TEMP1A                    ; GET INDEX
-+                INX                                    ; INCREMENT IT
-+                PLA                                    ; RE-LOAD CHAR
-+                BPL          EMPR1                     ; BR IF MORE CHARS
-+                RTS                                    ; DONE
+ ;
+ ; ERROR ROUTINE
+ ;
+@@ -2074,7 +2078,7 @@
+                 PLA                                    ; RE-LOAD CHAR
+                 BPL          EMPR1                     ; BR IF MORE CHARS
+                 RTS                                    ; DONE
+-                PAGE
 +;;;                PAGE
-+;
-+; OPNSUP - OPEN SET UP
-+;
-+OPNSUP          EQU          *
-+                LDA          CV                        ; VOLUME
-+                STA          CCBVOL
-+                LDA          CD                        ; DRIVE
-+                STA          CCBDRV
-+                LDA          CS                        ; SLOT
-+                STA          CCBSLT
-+                LDA          FN1ADR                    ; FILENAME 1 ADR
-+                STA          CCBFN1
-+                LDA          FN1ADR+1
-+                STA          CCBFN1+1
-+                LDA          ZPGWRK
-+                STA          CFTABA
-+                LDA          ZPGWRK+1
-+                STA          CFTABA+1
-+                RTS
-+;
-+; MVFN1 - MOVE FILE NAME 1 TO FILE PTR
-+;
-+MVFN1           EQU          *
-+                LDY          #29
-+MVFN1A          LDA          FNAME1,Y
-+                STA          (ZPGWRK),Y
-+                DEY
-+                BPL          MVFN1A
-+                RTS
-+;
-+; MVBUFP - MOVE BUFFER PTRS TO CCB
-+;
-+MVBUFP          EQU          *
-+                LDY          #30
-+MVBP1           LDA          (ZPGWRK),Y
-+                STA          CCBFCB-30,Y
-+                INY
-+                CPY          #38
-+                BNE          MVBP1
-+                RTS
-+;
-+; CLRSTS - CLEAR STATES
-+;
-+CLRSTS          EQU          *
-+                LDY          #0
-+                STY          ISTATE
-+                STY          OSTATE
-+                RTS
+ ;
+ ; OPNSUP - OPEN SET UP
+ ;
+@@ -2123,7 +2127,7 @@
+                 STY          ISTATE
+                 STY          OSTATE
+                 RTS
+-                PAGE
 +;;;                PAGE
-+;
-+; FILSRC - SEARCH FOR FILE NAME1
-+;
-+FILSRC          EQU          *
-+                LDA          #0                        ; CLEAR SV AVAIL
-+                STA          CNUM+1
-+;
-+                JSR          TSINIT                    ; GO INIT SEARCH
-+                JMP          FLS1A
-+FLS1            JSR          TSNXT                     ; LOOK AT NEXT
-+                BEQ          FLS4                      ; BR IF NO NEXT
-+;
-+FLS1A           JSR          TSTOPN                    ; GO TEST OPEN
-+                BNE          FLS2                      ; BR IF OPEN
-+;
-+                LDA          ZPGWRK                    ; SAVE AVAIL ENTRY ADR
-+                STA          CNUM
-+                LDA          ZPGWRK+1
-+                STA          CNUM+1
-+                BNE          FLS1                      ; GO LOOK SOME MORE
-+;
-+FLS2            LDY          #29                       ; FILE HAD 30 CHARS
-+FLS3            LDA          (ZPGWRK),Y                ; GET CHAR
+ ;
+ ; FILSRC - SEARCH FOR FILE NAME1
+ ;
+@@ -2147,7 +2151,7 @@
+ ;
+ FLS2            LDY          #29                       ; FILE HAD 30 CHARS
+ FLS3            LDA          (ZPGWRK),Y                ; GET CHAR
+-                CMP          FNAME1,Y                  TEST CHAR
 +                CMP          FNAME1,Y                  ; TEST CHAR
-+                BNE          FLS1                      ; BR NOT
-+                DEY
-+                BPL          FLS3                      ; LOOK AT 30 CHARS
-+                CLC                                    ; FOUND
-+                RTS                                    ; DONE
-+;
-+FLS4            SEC                                    ; NOT FOUND
-+                RTS                                    ; DONE
+                 BNE          FLS1                      ; BR NOT
+                 DEY
+                 BPL          FLS3                      ; LOOK AT 30 CHARS
+@@ -2156,7 +2160,7 @@
+ ;
+ FLS4            SEC                                    ; NOT FOUND
+                 RTS                                    ; DONE
+-                PAGE
 +;;;                PAGE
-+;
-+; TSINIT - INITIALIZE FOR FTAB SEARCH
-+; TSNXT - GET NEXT FTAB ENTRY
-+;
-+TSINIT          EQU          *
-+                LDA          FTAB                      ; GET 1ST PTR ADR
-+                LDX          FTAB+1
-+                BNE          TSST
-+TSNXT           EQU          *
-+                LDY          #37                       ; GET LINK
-+                LDA          (ZPGWRK),Y
-+                BEQ          TSR                       ; BR IF NO LINK
-+;
-+                TAX
-+                DEY
-+                LDA          (ZPGWRK),Y
-+TSST            EQU          *
-+                STX          ZPGWRK+1
-+                STA          ZPGWRK
-+                TXA                                    ; SET NE CC
-+TSR             RTS                                    ; RTN
-+;
-+; TSTOPN - TST FOR OPEN FILE
-+;
-+TSTOPN          EQU          *
-+                LDY          #0                        ; GET 1ST CHAR OF FN
-+                LDA          (ZPGWRK),Y
-+                RTS
-+;
-+; TSTEXC - TEST CURRENT FILE FOR EXECUTE
-+;
-+TSTEXC          EQU          *
-+                LDA          ESTATE                    ; IF ESTATE = 0
-+                BEQ          TXC1                      ; THEN NO EXECUTE FILE
-+                LDA          EFTABA                    ; TEST CURRENT
-+                CMP          ZPGWRK
-+                BNE          TXC2                      ; IS NOT
-+                LDA          EFTABA+1
-+                CMP          ZPGWRK+1
-+                BEQ          TXC2                      ; IS
-+TXC1            DEX                                    ; IS NOT
-+TXC2            RTS                                    ; DONE
+ ;
+ ; TSINIT - INITIALIZE FOR FTAB SEARCH
+ ; TSNXT - GET NEXT FTAB ENTRY
+@@ -2199,7 +2203,7 @@
+                 BEQ          TXC2                      ; IS
+ TXC1            DEX                                    ; IS NOT
+ TXC2            RTS                                    ; DONE
+-                PAGE
 +;;;                PAGE
-+;
-+; TSTFUC - TEST FILE USE CODE FOR PGM
-+;
-+TSTFUC          EQU          *
-+                EOR          CCBFUC
-+                BEQ          TFUCR
-+                AND          #$7F
-+                BEQ          TFUCR
-+                JSR          ECLOSE                    ; GO CLOSE THE SOB
-+                JMP          ERNU1
-+TFUCR           RTS
-+
-+; ####################################################################################################
-+; #   END OF FILE:  DOSGOER
-+; #   LINES      :  215
-+; #   CHARACTERS :  8197
-+; #   Formatter  :  Assembly Language Reformatter 1.0.2 (07 January 1998)
-+; ####################################################################################################
-+; ####################################################################################################
-+; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
+ ;
+ ; TSTFUC - TEST FILE USE CODE FOR PGM
+ ;
+@@ -2223,7 +2227,7 @@
  ; #   FILE NAME:  BLDFTAB
  ; ####################################################################################################
  
@@ -714,7 +564,7 @@
  ;
  ; BLDFTB - BUILD FILE TABLES
  ; TABLE MAP:
-@@ -2106,7 +2337,7 @@
+@@ -2333,7 +2337,7 @@
                  STA          IBHMEM
                  STA          IBSOP
                  RTS
@@ -723,7 +573,7 @@
  ;
  ; MVISW - MOVE INPUT SWITCH
  ;
-@@ -2152,7 +2383,7 @@
+@@ -2379,7 +2383,7 @@
  ; #   FILE NAME:  CMDTBLS
  ; ####################################################################################################
  
@@ -732,7 +582,7 @@
  ;
  ; COMMAND NAME TABLE
  ;
-@@ -2187,7 +2418,7 @@
+@@ -2414,7 +2418,7 @@
                  DCI          "BRUN"
                  DCI          "VERIFY"
                  DFB          0
@@ -741,7 +591,7 @@
  ;
  ; COMMAND SYNTAX OP EQUATES FOR SYNTAX BYTE ONE
  ;
-@@ -2243,14 +2474,14 @@
+@@ -2470,14 +2474,14 @@
                  DFB          FN1,V+D+S+ADR             ; BLOAD
                  DFB          FN1,V+D+S+ADR             ; BRUN
                  DFB          FN1,V+D+S                 ; VERIFY
@@ -760,7 +610,7 @@
  OPT1L           EQU          *-OPTAB1
  MI              EQU          $20
  MO              EQU          $10
-@@ -2273,7 +2504,7 @@
+@@ -2500,7 +2504,7 @@
                  DW           32767                     ; REC BYTE NO RANGE
                  DW           0
                  DW           $FFFF                     ; ADDRESS RANGE
@@ -769,7 +619,7 @@
  ;
  ; ERROR MESSAGE TABLES
  ;
-@@ -2328,7 +2559,7 @@
+@@ -2555,7 +2559,7 @@
  ; #   FILE NAME:  FDOSENT
  ; ####################################################################################################
  
@@ -778,7 +628,7 @@
  ;
  ; MISC BUT REQD CELLS
  ;
-@@ -2363,9 +2594,9 @@
+@@ -2590,9 +2594,9 @@
  CB              DW           0                         ; RECORD BYTE
  CA              DW           0                         ; ADDRESS
  IMBITS          DFB          0
@@ -790,7 +640,7 @@
  FNAME2          DS           30,$A0                    ;FILENAME 2
  DFNFTS          DFB          3                         ; DEFAULT FILE TABLES = 3
  CCHAR           DFB          $84                       ; CONTROL CHAR
-@@ -2377,7 +2608,7 @@
+@@ -2604,7 +2608,7 @@
                  DFB          $C5,$D3,$CF,$C6
                  DFB          $D4
  FASBL           EQU          *-FASB
@@ -799,7 +649,7 @@
  ;
  ; DOS ADR TABLES (RELOCATED)
  ;
-@@ -2418,7 +2649,7 @@
+@@ -2645,7 +2649,7 @@
                  DW           WSPBLK-1                  ; 3-WR SPECIFIC BLOCK
                  DW           GOODIO-1                  ; 4 - SPARE
  EAT2            EQU          *
@@ -808,7 +658,7 @@
  ;
  ; USERENT - DOS EXTERNAL ENTRY POINT (USER ENTRY)
  ; ENTRY PARM:
-@@ -2462,7 +2693,7 @@
+@@ -2689,7 +2693,7 @@
  ; #   FILE NAME:  FOPCLRW
  ; ####################################################################################################
  
@@ -817,7 +667,7 @@
  ;
  ; FOPEN - OPEN A FILE
  ;
-@@ -2580,7 +2811,7 @@
+@@ -2807,7 +2811,7 @@
                  LDA          #17
                  STA          DCBVTN
                  RTS
@@ -826,7 +676,7 @@
  ;
  ; FCLOSE - CLOSE A FILE
  ;
-@@ -2610,7 +2841,7 @@
+@@ -2837,7 +2841,7 @@
  ;
  FC2             EQU          *
                  JMP          GOODIO                    ; DONE
@@ -835,7 +685,7 @@
  ;
  *   FRNME - RENAME A FILE
  ;
-@@ -2626,7 +2857,7 @@
+@@ -2853,7 +2857,7 @@
                  JSR          MVFN                      ; GO MOVE FILE NAME
                  JSR          WRVDIR                    ; GO WRITE VDIR
                  JMP          GOODIO                    ; DONE RENAME
@@ -844,7 +694,7 @@
  ;
  *   FREAD - READ A FILE
  ;
-@@ -2663,7 +2894,7 @@
+@@ -2890,7 +2894,7 @@
                  LDA          WVT,X
                  PHA
                  RTS                                    ; AND GO TO IT
@@ -853,7 +703,7 @@
  ;
  *   RSPBYT - READ A SPECIFIC BYTE
  ;
-@@ -2705,7 +2936,7 @@
+@@ -2932,7 +2936,7 @@
                  RTS                                    ; RETURN
  ;
  EOFIN           JMP          ERROR5                    ; GO TO EOF RTN
@@ -862,271 +712,52 @@
  ;
  *   WSPBYT - WRITE SPECIFIC BYTE
  ;
-@@ -2757,10 +2988,271 @@
+@@ -2987,7 +2991,7 @@
+ ; #   FILE NAME:  FDELCAT
  ; ####################################################################################################
- ; ####################################################################################################
- ; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
-+; #   FILE NAME:  FDELCAT
-+; ####################################################################################################
-+
+ 
+-                PAGE
 +;;;                PAGE
-+;
-+*   FLOCK - LOCK A FILE
-+;
-+FLOCK           LDA          #$80                      ; REMEMBER LOCK
-+                STA          TEMP3
-+                BNE          LCKGO
-+;
-+*   FUNLCK - UNLOCK A FILE
-+;
-+FUNLCK          LDA          #00                       ; REMEMBER UNLOCK
-+                STA          TEMP3
-+;
-+LCKGO           EQU          *
-+;
-+                JSR          DOPEN                     ; GO OPEN FILE
-+                LDX          TEMP1
-+                LDA          VDFILE+2,X                ; GET FILE USE CODE
-+                AND          #$7F                      ; TURN OFF LOCK
-+                ORA          TEMP3
-+                STA          VDFILE+2,X
-+                JSR          WRVDIR
-+GOGOOD          JMP          GOODIO
-+;
-+*   FPOSTN - POSITION A FILE
-+FPOSTN          JSR          LOCSEC                    ; GO POSITION
-+                JMP          GOODIO                    ; DONE
-+;
-+;
-+*   FVAR - VARIFY A FILE
-+;
-+FVAR            EQU          *
-+                JSR          DOPEN                     ; OPEN FILE
-+VAR1            JSR          LOCNXB                    ; READ A SECTOR
-+                BCS          GOGOOD                    ; BR IF EOF
-+                INC          DCBCRS                    ; INCREMENT SECTOR
-+                BNE          VAR1
-+                INC          DCBCRS+1
-+                JMP          VAR1                      ; READ THIS ONE
+ ;
+ *   FLOCK - LOCK A FILE
+ ;
+@@ -3026,7 +3030,7 @@
+                 BNE          VAR1
+                 INC          DCBCRS+1
+                 JMP          VAR1                      ; READ THIS ONE
+-                PAGE
 +;;;                PAGE
-+;
-+*   FDEL - DELETE A FILE
-+;
-+FDEL            EQU          *
-+                JSR          DOPEN                     ; GO OPEN FILE
-+;
-+FD2             LDX          TEMP1                     ; SAVED INDEX
-+                LDA          VDFILE+2,X                ; IS FILE LOCKED
-+                BPL          FD3                       ; BR NOT LOCKED
-+                JMP          ERRR10
-+;
-+FD3             EQU          *
-+                LDX          TEMP1                     ; GET SAVED INDEX
-+                LDA          VDFILE,X                  ; GET DIR TRACK
-+                STA          DCBFDT                    ; SET AS 1ST FD TRACK
-+                STA          VDFILE+32,X               ; SAVE IN LC OF FN
-+                LDA          #$FF                      ; DELETED FILE MARKER
-+                STA          VDFILE,X                  ; CLEAR ENTRY
-+                LDY          VDFILE+1,X                ; GET DIR SECTOR
-+                STY          DCBFDS                    ; SET AS 1ST FD SEC
-+                JSR          WRVDIR                    ; GO WRITE VOLUME DIR
-+                CLC
-+FD4             JSR          RDFDIR                    ; GET 1ST FILE DIR SECTOR
-+                BCS          FD7                       ; BR IF NO MORE
-+                JSR          MVFCBD                    ; MOVE DIR TO ZPG
-+                LDY          #FDENT                    ; POINT Y TO 1ST SEC ENT
-+FD5             STY          TEMP1                     ; SAVE Y
-+                LDA          (ZPGFCB),Y                ; GET REACK
-+                BMI          FD6                       ; BR IF NONE
-+                BEQ          FD6                       ; BR IF END OF FILE
-+                PHA                                    ; SAVE TRK
-+                INY
-+                LDA          (ZPGFCB),Y                ; GET SECTOR
-+                TAY                                    ; TO Y
-+                PLA                                    ; GET TRK
-+                JSR          FDSUB                     ; GO FREE SECTOR
-+FD6             LDY          TEMP1                     ; GET DIR INDEX
-+                INY                                    ; INCR TO NEXT ENTRY
-+                INY
-+                BNE          FD5                       ; BR NOT DONE THIS DIR
-+                LDA          DCBCDT                    ; GET THIS DIR TRK
-+                LDY          DCBCDS                    ; AND SECTOR
-+                JSR          FDSUB                     ; AND GO FREE IT
-+                SEC                                    ; GO
-+                BCS          FD4                       ; READ NEXT DIR
-+FD7             EQU          *
-+                JSR          WRVTOC
-+                JMP          GOODIO
-+;
-+FDSUB           EQU          *
-+                SEC                                    ; SET FOR RE USE OF SEC
-+                JSR          FRESEC                    ; GO FREE SECTOR
-+                LDA          #0                        ; CLEAR DCB BIT MAP
-+                LDX          #5                        ;CLEAR ALL OF TRK BITMAP SO
-+*     ;>16 SECTORS/TRK WILL WORK
-+FDS1            STA          DCBALS,X
-+                DEX
-+                BPL          FDS1
-+                RTS
+ ;
+ *   FDEL - DELETE A FILE
+ ;
+@@ -3086,7 +3090,7 @@
+                 DEX
+                 BPL          FDS1
+                 RTS
+-                PAGE
 +;;;                PAGE
-+;
-+*   RDIR - PRINT DIRECTORY
-+;
-+RDIR            EQU          *
-+                JSR          DCBSUP
-+                LDA          #$FF
-+                STA          DCBVOL
-+                JSR          RDVTOC
-+                LDA          #22                       ; SET 21 LINES
-+                STA          TEMP2
-+                JSR          PRCR                      ; GO PRINT
-+                JSR          PRCR                      ; PRINT ANOTHER CHAR
-+                LDX          #VML                      ; VOLUME MSG LENGTH
-+RD0             LDA          VOLMES,X                  ; GET MSG CHAR
-+                JSR          PRINT                     ; PRINT IT
-+                DEX                                    ; DECREMENT COUNT
-+                BPL          RD0                       ; BR IF MORE
-+;
-+                STX          CNUM+1
-+                LDA          IBSMOD                    ; MOVE VOL NO FOR
-+                STA          CNUM                      ; CONVERSION
-+                JSR          PRNUM                     ; GO PRINT VOL NO
-+;
-+                JSR          PRCR                      ; PRINT CR
-+                JSR          PRCR                      ; AND AGAIN
-+;
-+                CLC                                    ; FIRST RECORD
-+;
-+RD1             JSR          RDVDIR                    ; GO READ REC
-+                BCS          RD5
-+                LDX          #0                        ; SET INDEX=0
-+RD2             STX          TEMP1                     ; SAVE INDEX
-+                LDA          VDFILE,X                  ; GET TRACK
-+                BEQ          RD5                       ; BR IF END OF DIR
-+                BMI          RD4                       ; BR IF DELETED
-+;
-+                LDY          #$A0                      ; BLANK
-+                LDA          VDFILE+2,X                ; GET TYPE
-+                BPL          RD2A                      ; BR IF NOT LOCKED
-+                LDY          #'*'+$80                  ; AST
-+RD2A            TYA                                    ; ACU = AST OR BLANK
-+                JSR          PRINT                     ; PRINT ACU
-+;
-+                LDA          VDFILE+2,X                ; GET TYPE
-+                AND          #$7F                      ; MASK OUT MISC
-+                LDY          #7                        ; SET INDEX = 7
-+                ASL          A                         ;GET RID OF HI BIT
-+RD2B            ASL          A                         ; SHIFT OUT MSB
-+                BCS          RD2C                      ; BR IF TYPE BIT OUT
-+                DEY                                    ; DEC INDEX
-+                BNE          RD2B                      ; BR IF NOT ACC BITS
-+RD2C            EQU          *
-+                LDA          FTTAB,Y                   ; GET TYPE CODE
-+                JSR          PRINT                     ; PRINT IT
-+                LDA          #$A0                      ; BLANK
-+                JSR          PRINT                     ; PRINT
-+;
-+                LDA          VDFILE+33,X               ; MOVE FILE LENGTH
-+                STA          CNUM                      ; TO CNUM
-+                LDA          VDFILE+34,X
-+                STA          CNUM+1
-+                JSR          PRNUM                     ; GO PRINT NUMBER
-+                LDA          #$A0                      ; BLANK
-+                JSR          PRINT                     ; PRINT
-+;
-+                INX
-+                INX
-+                INX
-+                LDY          #29
-+RD3             LDA          VDFILE,X                  ; GET CHAR
-+                JSR          PRINT                     ; PRINT CHAR
-+                INX
-+                DEY
-+                BPL          RD3
-+RD3A            EQU          *
-+                JSR          PRCR                      ; GO PRINT CR
-+RD4             JSR          VDINC                     ; INCR INDEX
-+                BCC          RD2                       ; BR IF MORE IN DIR
-+                BCS          RD1                       ; GO READ NEXT DIR SECT
-+;
-+RD5             JMP          GOODIO                    ; DONE
-+;
-+PRCR            EQU          *
-+                LDA          #$8D                      ; CR
-+                JSR          PRINT                     ; PRINTED
-+                DEC          TEMP2                     ; DEC LINE COUNTER
-+                BNE          PRCR1                     ; BR IF NOT ZERO
-+                JSR          GETKEY                    ; WAIT FOR INPUT
-+                LDA          #21                       ; RESET LINE COUNTER
-+                STA          TEMP2
-+PRCR1           RTS                                    ; DONE
+ ;
+ *   RDIR - PRINT DIRECTORY
+ ;
+@@ -3178,7 +3182,7 @@
+                 LDA          #21                       ; RESET LINE COUNTER
+                 STA          TEMP2
+ PRCR1           RTS                                    ; DONE
+-                PAGE
 +;;;                PAGE
-+PRNUM           EQU          *
-+                LDY          #2                        ; 3 DIGITS
-+PRN1            LDA          #0                        ; INIT DIGIT TO ZERO
-+                PHA                                    ; SAVE IT
-+;
-+PRN2            LDA          CNUM                      ; GET NUMBER
-+                CMP          CVTAB,Y                   ; IF NUM < CVTAB ENTRY
-+                BCC          PRN3                      ; THEN DONE THIS DIGIT
-+;
-+                SBC          CVTAB,Y                   ; SUBTRACT TABLE ENTRY
-+                STA          CNUM                      ; FROM NUM
-+                LDA          CNUM+1
-+                SBC          #0
-+                STA          CNUM+1
-+                PLA                                    ; INCREMENT DIGIT
-+                ADC          #0
-+                PHA
-+                JMP          PRN2                      ; TRY AGAIN
-+;
-+PRN3            EQU          *
-+                PLA                                    ; GET DIGIT
-+                ORA          #$B0                      ; ADD ASCII 0
-+                JSR          PRINT                     ; PRINT IT
-+                DEY                                    ; DECREMENT DIGIT COUNT
-+                BPL          PRN1                      ; BR IF MORE DIGIT
-+;
-+                RTS                                    ; DONE
+ PRNUM           EQU          *
+                 LDY          #2                        ; 3 DIGITS
+ PRN1            LDA          #0                        ; INIT DIGIT TO ZERO
+@@ -3206,7 +3210,7 @@
+                 BPL          PRN1                      ; BR IF MORE DIGIT
+ ;
+                 RTS                                    ; DONE
+-                PAGE
 +;;;                PAGE
-+;
-+*   CLCFCB - GET FCB VIA INDEX AND MOVE IT
-+;
-+CLCFCB          EQU          *
-+;
-+                JSR          MVFCBP                    ; MOVE FCB PTR TO ZPG
-+                LDY          #0
-+                STY          CCBSTA
-+CF3             LDA          (ZPGFCB),Y                ; MOVE FCB TO
-+                STA          FCB,Y                     ; FCB WORK AREA
-+                INY
-+                CPY          #FCBLEN
-+                BNE          CF3
-+;
-+                CLC                                    ; DONE
-+                RTS
-+;
-+*   RTNFCB - MOVE FCB FROM WORK AREA TO FCB
-+;
-+RTNFCB          EQU          *
-+                JSR          MVFCBP                    ; MOVE FCB ADR TO ZPG
-+;
-+                LDY          #0
-+RF1             LDA          FCB,Y
-+                STA          (ZPGFCB),Y
-+                INY
-+                CPY          #FCBLEN
-+                BNE          RF1
-+                RTS
-+
-+; ####################################################################################################
-+; #   END OF FILE:  FDELCAT
-+; #   LINES      :  249
-+; #   CHARACTERS :  11371
-+; #   Formatter  :  Assembly Language Reformatter 1.0.2 (07 January 1998)
-+; ####################################################################################################
-+; ####################################################################################################
-+; #   PROJECT  :  APPLE ][ DOS 3.3 C SOURCE CODE LISTING -- (C) APPLE COMPUTER INC. JULY 1983
+ ;
+ *   CLCFCB - GET FCB VIA INDEX AND MOVE IT
+ ;
+@@ -3248,7 +3252,7 @@
  ; #   FILE NAME:  FMTRWIO
  ; ####################################################################################################
  
@@ -1135,7 +766,7 @@
  ;
  *   FFMT - EXECUTE FORMAT REQUEST
  ;
-@@ -2828,7 +3320,7 @@
+@@ -3316,7 +3320,7 @@
                  JSR          DLDSUP                    ; GO SET UP FOR DOSLDR
                  JSR          WBOOT                     ; GO WRITE THE BOOT
                  JMP          GOODIO                    ; DONE
@@ -1144,7 +775,7 @@
  ;
  *   MVFCBX - MOVE FCB ADRS TO ZPGFCB
  ;
-@@ -2845,7 +3337,7 @@
+@@ -3333,7 +3337,7 @@
                  STA          ZPGFCB+1
                  RTS
  ;
@@ -1153,7 +784,7 @@
  ;
  *   WRSECT - WRITE CURRENT SECTOR IF REQD
  ;
-@@ -2864,7 +3356,7 @@
+@@ -3352,7 +3356,7 @@
                  AND          DCBWRF
                  STA          DCBWRF
                  RTS                                    ; DONE
@@ -1162,7 +793,7 @@
  ;
  *   WRFDIR - WRITE FILE DIRECTRY IF REQD
  ;
-@@ -2894,7 +3386,7 @@
+@@ -3382,7 +3386,7 @@
                  LDX          DCBCDT                    ; GET TRACK
                  LDY          DCBCDS                    ; GET SECTOR
                  RTS
@@ -1171,7 +802,7 @@
  ;
  *   RDFDIR - READ FILE DIRECTORY
  ;
-@@ -2973,7 +3465,7 @@
+@@ -3461,7 +3465,7 @@
  ;
                  CLC
                  RTS                                    ; DONE
@@ -1180,7 +811,7 @@
  ;
  ;RDSECT - READ A SECTOR
  ;
-@@ -3005,7 +3497,7 @@
+@@ -3493,7 +3497,7 @@
  ; #   FILE NAME:  FLOCNXB
  ; ####################################################################################################
  
@@ -1189,7 +820,7 @@
  ;
  ;RDVTOC - READ VTOC
  ;WRVTOC - WRITE VTOC
-@@ -3024,7 +3516,7 @@
+@@ -3512,7 +3516,7 @@
                  LDX          DCBVTN                    ; GET TRACK
                  LDY          #0
                  JMP          DCBIO                     ; GO DO I/O
@@ -1198,7 +829,7 @@
  ;
  ;RDVDIR - READ VOLUME DIRECTOR
  ;
-@@ -3053,7 +3545,7 @@
+@@ -3541,7 +3545,7 @@
                  JSR          DCBIO                     ; GO DO I/O
                  CLC
                  RTS
@@ -1207,7 +838,7 @@
  ;
  ;WRVDIR - WRITE VOLUME DIRECTORY SECTOR
  ;
-@@ -3073,7 +3565,7 @@
+@@ -3561,7 +3565,7 @@
                  LDA          AVOLDR+1
                  STA          IBBUFP+1
                  RTS
@@ -1216,7 +847,7 @@
  ;
  ;DCBIO - DO I/O FOR A DCB
  ;
-@@ -3122,7 +3614,7 @@
+@@ -3610,7 +3614,7 @@
                  LDY          #CREIOE
  BD2             TYA
                  JMP          ERRORB                    ; GO RTN
@@ -1225,7 +856,7 @@
  ;
  ;LOCNXB - LOCATE NEXT BYTE
  ;
-@@ -3190,7 +3682,7 @@
+@@ -3678,7 +3682,7 @@
                  LDY          DCBCSB                    ; GET SECT BYTE
                  CLC                                    ; CARRY CLEAR = ALL OK
                  RTS                                    ; DONE
@@ -1234,7 +865,7 @@
  ;
  ;
  GNWSEC          EQU          *                         ; NEED NEW SECTOR
-@@ -3213,7 +3705,7 @@
+@@ -3701,7 +3705,7 @@
                  ORA          DCBWRF                    ; DIR AND SECTOR
                  STA          DCBWRF                    ; MUST BE WRITTEN
                  RTS                                    ; DONE
@@ -1243,7 +874,7 @@
  ;
  ;INCRRB - INCREMENT RELATIVE RECORD BYTE
  ;
-@@ -3244,7 +3736,7 @@
+@@ -3732,7 +3736,7 @@
                  STY          DCBCRB+1
  ;
                  RTS
@@ -1252,7 +883,7 @@
  ;
  ;INCSCB - INCREMENT SECTOR BYTE
  ;
-@@ -3258,7 +3750,7 @@
+@@ -3746,7 +3750,7 @@
  ;
  INCS2           EQU          *
                  RTS                                    ; DONE
@@ -1261,7 +892,7 @@
  ;
  ;MIBDA - MOVE AND INCREMENT CCBDAT
  ;
-@@ -3297,7 +3789,7 @@
+@@ -3785,7 +3789,7 @@
  ; #   FILE NAME:  FLOCSEC
  ; ####################################################################################################
  
@@ -1270,7 +901,7 @@
  ;
  ;FNDFIL - FIND FILE NAME IN VOLUUME DIR
  ;
-@@ -3373,7 +3865,7 @@
+@@ -3861,7 +3865,7 @@
                  LDY          TEMP2
                  BNE          FF1
                  JMP          ERROR9
@@ -1279,7 +910,7 @@
  ;
  ;GETSEC - GET A SECTOR
  ;
-@@ -3446,7 +3938,7 @@
+@@ -3934,7 +3938,7 @@
                  STA          DCBALS                    ; SET IN DCB SECTOR BYTE
                  BNE          GS0                       ; GO ALLOCATED SECTOR
  ERR9            JMP          ERROR9
@@ -1288,7 +919,7 @@
  ;
  ;FRETRK - FREE TRACK OF SECTORS
  ;
-@@ -3488,7 +3980,7 @@
+@@ -3976,7 +3980,7 @@
                  DEX
                  BNE          FS3
  FS4             RTS                                    ; DONE
@@ -1297,7 +928,7 @@
  ;
  ;LOCSEC - LOCATE SECTOR FOR RECORD I/O
  ;
-@@ -3526,9 +4018,9 @@
+@@ -4014,9 +4018,9 @@
                  DEY                                    ; DEC BIT COUNT
                  BNE          LS1                       ; BR IF MORE BITS
  ;
@@ -1309,7 +940,7 @@
                  LDA          CCBBYT                    ; ADD REL BYTE RESULT
                  STA          DCBCRB                    ; (SAVE REL BYTE)
                  ADC          DCBCSB
-@@ -3537,18 +4029,18 @@
+@@ -4025,18 +4029,18 @@
                  STA          DCBCRB+1                  ; (SAVE REL BYTE)
                  ADC          DCBCRS
                  STA          DCBCRS
@@ -1336,7 +967,7 @@
  ERROR1          LDA          #CREFUN
                  BNE          ERRORA
  ERROR2          LDA          #CRERR
-@@ -3593,7 +4085,7 @@
+@@ -4081,7 +4085,7 @@
  ; #   FILE NAME:  FVCBUFS
  ; ####################################################################################################
  
@@ -1345,7 +976,7 @@
  ;MISC DOS WORK CELLS
  ;
  CVDTRK          DFB          0                         ; CUR VOL DIR TRK
-@@ -3606,13 +4098,13 @@
+@@ -4094,13 +4098,13 @@
  ENTSLT          DFB          0                         ; BOOT SLOT SAVED
  ALC10S          DFB          0,0,$FF,$FF               ; ALLOCATATION TRACK BIT MAP
  CVTAB           DFB          1,10,100                  ; CONVERSION TABLE
@@ -1362,7 +993,7 @@
  ;VTOC RECORD AREA
  VTOC            EQU          *
  VDOST           DFB          4                         ; DOS TYPE
-@@ -3623,6 +4115,7 @@
+@@ -4111,6 +4115,7 @@
                  DFB          0                         ; SPARE
  VVOLNO          DFB          $FE                       ; VOLUME NUMBER
                  DS           32                        ; SPARE
@@ -1370,7 +1001,7 @@
  VTDMS           DFB          122                       ; MAX SECTORS IN A FILE DIR
  VSPARE          DS           8                         ; SPARES
  ;
-@@ -3641,7 +4134,7 @@
+@@ -4129,7 +4134,7 @@
  ;WHERE N=NO SECTORS PER TRACK
  ;
  ;
@@ -1379,7 +1010,7 @@
                  ORG          VTOC+256
  ;
  ;VOLUME DIRECTORY AREA
-@@ -3665,7 +4158,7 @@
+@@ -4153,7 +4158,7 @@
  VDLEN           EQU          *-VOLDIR
  VDFLEN          EQU          *-VDFILE
  ;
@@ -1388,7 +1019,7 @@
  ;
  ;COMMAND CONTROL BLOCK (CCB)
  ;
-@@ -3732,7 +4225,7 @@
+@@ -4220,7 +4225,7 @@
  CFCBAD          EQU          CCBFCB
  CFCBDR          EQU          CCBDBP
  CFCBSB          EQU          CCBSBP
@@ -1397,7 +1028,7 @@
  ;
  ;FILE CONTROL BLOCK (FCB) DEFINITION
  ;DCB - FILE DATA CONTROL BLOCK
-@@ -3792,14 +4285,14 @@
+@@ -4280,14 +4285,14 @@
  ; #   FILE NAME:  BOOTLDR
  ; ####################################################################################################
  
@@ -1416,7 +1047,7 @@
  ***************************
  *                         *
  * 16-SECTOR DOS BOOTSTRAP *
-@@ -3838,7 +4331,7 @@
+@@ -4326,7 +4331,7 @@
  BHERE3          EQU          >*
  BOOTCNT         EQU          $800+BHERE3
                  DFB          01
@@ -1425,7 +1056,7 @@
                  LDA          POINTA+1                  ;WHERE DID BSECTR GET LOADED?
                  CMP          #09                       ; (AT 0800)?
                  BNE          READNEXT                  ;=>NO. WE'RE LOADING SOMETHING
-@@ -3888,8 +4381,8 @@
+@@ -4376,8 +4381,8 @@
                  DFB          03,01,14                  ;06->03,07->01,08->14
                  DFB          12,10,08                  ;09->12,10->10,11->08
                  DFB          06,04,02,15               ;12->6,13->04,14->02,15->15
@@ -1436,7 +1067,7 @@
  * APPEND BUG PATCHES
  ****************************
  SC3             EQU          *
-@@ -3913,7 +4406,7 @@
+@@ -4401,7 +4406,7 @@
  GOBACK          LDA          #0
                  STA          EOFFLAG                   ;TURN FLAG OFF
                  JMP          FIXIT2                    ;Go to FIXIT2 as exit
@@ -1445,7 +1076,7 @@
  VPATCH          EQU          *
                  STA          CCBRQM                    ;ORIGINAL INSTRUCTION
                  JSR          DOSGO                     ;GO SAVE
-@@ -3938,10 +4431,10 @@
+@@ -4426,10 +4431,10 @@
                  LDX          #$FF                      ;SET FLAG SO APPEND WILL
                  STX          EOFFLAG                   ;KNOW TO CROSS SECTOR BOUNDARY
                  BNE          BACK                      ;ALWAYS TAKEN
@@ -1459,7 +1090,7 @@
  *
  * FIXIT2 was developed to fix the wrap around
  * problem APPEND has when trying to APPEND to
-@@ -3960,21 +4453,21 @@
+@@ -4448,21 +4453,21 @@
  *                Guil Banks
  *               July 11, 1983
  *
@@ -1496,7 +1127,7 @@
  *
  *   Upper/Lower case patch
  *   for DOS 3.3C and BASIC
-@@ -3983,7 +4476,7 @@
+@@ -4471,7 +4476,7 @@
  *        Guil Banks
  *        Mark Houde
  *
@@ -1505,7 +1136,7 @@
  *
  * This routine converts all characters
  * that are not between quotes to
-@@ -4001,32 +4494,32 @@
+@@ -4489,32 +4494,32 @@
  *              ACCUM = $8D
  *              X Reg = unknown
  *
@@ -1564,7 +1195,7 @@
  BHERE1          EQU          >*
                  DS           $FD-BHERE1,0
  * LOAD ADDRESS FOR CODE (PG BDY)
-@@ -4039,17 +4532,17 @@
+@@ -4527,17 +4532,17 @@
  * LAST LOGICAL BSECTOR TO READ STARTING AT $00
  BHERE5          EQU          >*
  BGRPGC          EQU          $800+BHERE5
@@ -1589,7 +1220,7 @@
                  STX          IBSLOT                    ; SET BOOT SLOT
                  STX          IBPSLT                    ; SET PREVIOUS SLOT
                  LDA          #1                        ; SET PREV DRIVE
-@@ -4090,7 +4583,7 @@
+@@ -4578,7 +4583,7 @@
  RCBACK          JSR          SETKBD
  ;
  DI3             JMP          DOSREL                    ; GO TO POST INIT ROUTINE
@@ -1598,7 +1229,7 @@
  WBOOT           EQU          *
                  LDA          ADOSLD+1
                  SEC
-@@ -4121,7 +4614,7 @@
+@@ -4609,7 +4614,7 @@
                  JSR          BOOTIO                    ;AND WRITE DOWN TO ZERO
                  RTS
                  DS           6,0                       ;FILL WITH BRKS
@@ -1607,7 +1238,7 @@
  BOOTIO          EQU          *
                  LDA          BAIOB+1
                  LDY          BAIOB
-@@ -4141,7 +4634,7 @@
+@@ -4629,7 +4634,7 @@
                  BNE          BOOTIO                    ; BR IF NOT DONE
                  RTS
  ;
@@ -1616,7 +1247,7 @@
  DISKIO          PHP                                    ;SAVE INTERUPT STATUS
                  SEI                                    ;INHIBIT INTERUPT WHILE
                  JSR          RWTS                      ; ACCESSING DISK
-@@ -4169,13 +4662,13 @@
+@@ -4657,13 +4662,13 @@
                  RTS
                  BRK
  EC3             EQU          *
@@ -1632,7 +1263,7 @@
  ;
  ;IOB - INPUT / OUTPUT CONTROL BLOCK
  ;THE IOB IS USED FOR THE INTERFACE
-@@ -4208,11 +4701,13 @@
+@@ -4696,11 +4701,13 @@
  IBSPAR          DS           2,0                       ; IOB SPARES
  DCT             DFB          0,1,$EF,$D8
                  DS           1,0                       ;FILL IN 3700 PAGE
@@ -1648,7 +1279,7 @@
  FILDIR          EQU          *
  FDUCDE          DS           1                         ; FILE USE CODE
  FDLTRK          DS           1                         ; LINK TO NEXT DIR TRACK
-@@ -4227,8 +4722,8 @@
+@@ -4715,8 +4722,8 @@
  FDSEC           EQU          1                         ; SECTOR
  ;
  FDLAST          EQU          FILDIR+256
@@ -1659,7 +1290,7 @@
  ; ####################################################################################################
  ; #   END OF FILE:  BOOTLDR
  ; #   LINES      :  436
-@@ -4240,7 +4735,7 @@
+@@ -4728,7 +4735,7 @@
  ; #   FILE NAME:  COREQUS
  ; ####################################################################################################
  
@@ -1668,7 +1299,7 @@
  ***************************
  *                         *
  *         DISC-II         *
-@@ -4263,7 +4758,7 @@
+@@ -4751,7 +4758,7 @@
  *                         *
  ***************************
  ASC1            EQU          *                         ;TELL RELOCATOR WHERE CORE STARTS
@@ -1677,7 +1308,7 @@
  ***************************
  *                         *
  *     CRITICAL TIMING     *
-@@ -4308,7 +4803,7 @@
+@@ -4796,7 +4803,7 @@
  *  DNIBL,$FF ARE USED.    *
  *                         *
  ***************************
@@ -1686,7 +1317,7 @@
  ***************************
  *                         *
  *         EQUATES         *
-@@ -4320,7 +4815,7 @@
+@@ -4808,7 +4815,7 @@
  *   (16-SECTOR FORMAT)    *
  *                         *
  ***************************
@@ -1695,7 +1326,7 @@
  *
  * POINTS TO 256-BYTE
  * USER BUFFER ANYWHERE
-@@ -4334,16 +4829,16 @@
+@@ -4822,16 +4829,16 @@
  * 00ABCDEF BACK TO USER
  * DATA IN BUF AFTER 'READ'.
  *
@@ -1717,7 +1348,7 @@
  *       CHECKSUM, SECTOR, TRACK, AND VOLUME.
  *
  ************************
-@@ -4355,9 +4850,9 @@
+@@ -4843,9 +4850,9 @@
  *       'NIBL'.        *
  *                      *
  ************************
@@ -1730,7 +1361,7 @@
  *
  ************************
  *                      *
-@@ -4371,26 +4866,26 @@
+@@ -4859,26 +4866,26 @@
  *  OF DNIBL16 TABLE.   *
  *                      *
  ************************
@@ -1765,7 +1396,7 @@
  *
  ************************
  *                      *
-@@ -4408,12 +4903,12 @@
+@@ -4896,12 +4903,12 @@
  *     ASSIGNMENTS      *
  *                      *
  ************************
@@ -1784,7 +1415,7 @@
  
  ; ####################################################################################################
  ; #   END OF FILE:  COREQUS
-@@ -4426,7 +4921,7 @@
+@@ -4914,7 +4921,7 @@
  ; #   FILE NAME:  PRENIBL
  ; ####################################################################################################
  
@@ -1793,7 +1424,7 @@
  ****************************
  *                          *
  *    PRENIBLIZE SUBR       *
-@@ -4460,7 +4955,7 @@
+@@ -4948,7 +4955,7 @@
  ****************************
  PRENIB16        LDX          #$0                       ;START NBUF2 INDEX. CHANGED BY WOZ
                  LDY          #2                        ;START USER BUF INDEX. CHANGED BY WOZ.
@@ -1802,7 +1433,7 @@
                  LDA          (BUF),Y
                  LSR          A                         ;SHIFT TWO BITS OF
                  ROL          NBUF2,X                   ;CURRENT USER BYTE
-@@ -4492,7 +4987,7 @@
+@@ -4980,7 +4987,7 @@
  ; #   FILE NAME:  WRITRTN
  ; ####################################################################################################
  
@@ -1811,7 +1442,7 @@
  ************************
  *                      *
  *      WRITE SUBR      *
-@@ -4541,71 +5036,71 @@
+@@ -5029,71 +5036,71 @@
  *  1 USEC CYCLE TIME   *
  *                      *
  ************************
@@ -1945,7 +1576,7 @@
  *****************************
  *                           *
  *   7-BIT NIBL WRITE SUBRS  *
-@@ -4614,11 +5109,11 @@
+@@ -5102,11 +5109,11 @@
  *       CARRY CLEARED       *
  *                           *
  *****************************
@@ -1962,7 +1593,7 @@
                  RTS
  
  ; ####################################################################################################
-@@ -4632,7 +5127,7 @@
+@@ -5120,7 +5127,7 @@
  ; #   FILE NAME:  POSTNRD
  ; ####################################################################################################
  
@@ -1971,7 +1602,7 @@
  ***************************
  *                         *
  *    POSTNIBLIZE SUBR     *
-@@ -4677,21 +5172,21 @@
+@@ -5165,21 +5172,21 @@
  *    AND NBUF2.           *
  *      (342 NIBLS)        *
  ***************************
@@ -2006,7 +1637,7 @@
  **************************
  *                        *
  *     READ SUBROUTINE    *
-@@ -4746,57 +5241,57 @@
+@@ -5234,57 +5241,57 @@
  *   1 USEC CYCLE TIME    *
  *                        *
  **************************
@@ -2099,7 +1730,7 @@
  
  ; ####################################################################################################
  ; #   END OF FILE:  POSTNRD
-@@ -4809,7 +5304,7 @@
+@@ -5297,7 +5304,7 @@
  ; #   FILE NAME:  RDADSEK
  ; ####################################################################################################
  
@@ -2108,7 +1739,7 @@
  ****************************
  *                          *
  *    READ ADDRESS FIELD    *
-@@ -4865,54 +5360,54 @@
+@@ -5353,54 +5360,54 @@
  *                          *
  ****************************
  RDADR16         LDY          #$FC
@@ -2201,7 +1832,7 @@
  **************************
  *                        *
  *  FAST SEEK SUBROUTINE  *
-@@ -4961,7 +5456,7 @@
+@@ -5449,7 +5456,7 @@
  **************************
  SEEK            STX          SLOTTEMP                  ;SAVE X-REG
                  STA          TRKN                      ;SAVE TARGET TRACK
@@ -2210,7 +1841,7 @@
                  BEQ          SEEKRTS                   ;YES, RETURN
                  LDA          #$0
                  STA          TRKCNT                    ;HALFTRACK COUNT.
-@@ -4970,14 +5465,14 @@
+@@ -5458,14 +5465,14 @@
                  SEC
                  SBC          TRKN                      ;DELTA-TRACKS.
                  BEQ          SEEKEND                   ;BR IF CURTRK=DESTINATION
@@ -2232,7 +1863,7 @@
                  LDA          TRKCNT
  MAXTST          CMP          #$C
                  BCS          STEP2                     ;IF TRKCNT>$B LEAVE Y ALONE (Y=$B).
-@@ -4985,16 +5480,16 @@
+@@ -5473,16 +5480,16 @@
  STEP2           EQU          *
                  SEC                                    ;CARRY SET=PHASE ON
                  JSR          SETPHASE                  ;PHASE ON
@@ -2255,7 +1886,7 @@
  *
  SEEKEND         EQU          *                         ;END OF SEEKING
                  JSR          MSWAIT                    ;A=0: WAIT 25 MS SETTLE
-@@ -5024,7 +5519,7 @@
+@@ -5512,7 +5519,7 @@
  ; #   FILE NAME:  MSWAITR
  ; ####################################################################################################
  
@@ -2264,7 +1895,7 @@
  **************************
  *   MSWAIT SUBROUTINE    *
  **************************
-@@ -5055,14 +5550,14 @@
+@@ -5543,14 +5550,14 @@
  **************************
                  DS           3,0                       ;AVOID PAGE BOUNDARY CROSSING...
  MSWAIT          LDX          #$11
@@ -2284,7 +1915,7 @@
                  RTS
  AEC1            EQU          *                         ;TELL RELOCATOR WHERE CORE ENDS
  **************************
-@@ -5078,7 +5573,7 @@
+@@ -5566,7 +5573,7 @@
                  DFB          $22,$1F,$1E
                  DFB          $1D,$1C,$1C
                  DFB          $1C,$1C,$1C
@@ -2293,7 +1924,7 @@
  ***************************
  *                         *
  *     6-BIT TO 7-BIT      *
-@@ -5118,7 +5613,7 @@
+@@ -5606,7 +5613,7 @@
                  DFB          $F9,$FA,$FB
                  DFB          $FC,$FD,$FE
                  DFB          $FF
@@ -2302,7 +1933,7 @@
  ***************************
  *      7-BIT TO 6-BIT     *
  *     'DENIBLIZE' TABL    *
-@@ -5140,7 +5635,7 @@
+@@ -5628,7 +5635,7 @@
  ***************************
  XP              EQU          <*                        ;CURRENT PAGE ADDRESS
  DNIBL           EQU          256*XP                    ;DNIBL TABLE PAGE
@@ -2311,7 +1942,7 @@
  ***********************************************
  *
  * GHOST APPEND BUG PATCH BY
-@@ -5155,7 +5650,7 @@
+@@ -5643,7 +5650,7 @@
                  LDX          #$00                      ; NO, THEN CLEAR X
                  STX          EOFFLAG                   ; CLEAR EOF FLAG
  GOON            RTS
@@ -2320,7 +1951,7 @@
  ***********************************************
  *
  * TURN Apple //e 80 COLUMN CARD
-@@ -5168,7 +5663,16 @@
+@@ -5656,7 +5663,16 @@
                  STA          $C00C                     ; TURNS 80 COL OFF
                  STA          $C00E                     ; TURN OFF ALT CHAR SET
                  JMP          $FB2F                     ; MONITOR INIT ROUTINE
@@ -2338,7 +1969,7 @@
  PEC1            EQU          *                         ;Tell relocater where to stop
  PD1             EQU          >*
  PD2             EQU          $96-PD1
-@@ -5209,7 +5713,7 @@
+@@ -5697,7 +5713,7 @@
                  DFB          $39,$3A,$3B
                  DFB          $3C,$3D,$3E
                  DFB          $3F
@@ -2347,7 +1978,7 @@
  ***************************
  *                         *
  *    NYBBLE BUFFERS       *
-@@ -5238,7 +5742,7 @@
+@@ -5726,7 +5742,7 @@
  ; #   FILE NAME:  WRITADR
  ; ####################################################################################################
  
@@ -2356,7 +1987,7 @@
  ********************************
  *                              *
  *  WRITE ADR FIELD SUBROUTINE  *
-@@ -5290,75 +5794,75 @@
+@@ -5778,75 +5794,75 @@
  ********************************
  SWADR1          EQU          *                         ;TELL RELOCATOR WHERE TO BEGIN
  *******************************
@@ -2394,6 +2025,39 @@
 -                PHA          (3)                       SAVE FOR EVEN BITS.
 -                LSR          A                         (2) ALIGHN ODD BITS.
 -                ORA          AA                        (3) SET CLOCK BITS.
+-*    (PRECISE TIMING, 32 CYCLES PER NIBL)
+-                STA          Q6H,X                     (5) WRITE CHECKSUM ODD BITS.
+-                LDA          Q6L,X                     (4) BACK TO WRITE MODE.
+-                PLA          (4)                       RECOVER FOR EVEN BITS.
+-                ORA          #$AA                      (2) SET CLOCK BITS.
+-                JSR          WNIBLA                    (17,9,6) WRITE THEM.
+-                LDA          #$DE                      (2) END MARK 1.
+-                JSR          WNIBLB2                   (15,9,6) WRITE IT.
+-                LDA          #$AA                      (2) END MARK 2.
+-                JSR          WNIBLB2                   (15,9,6) WRITE IT.
+-                LDA          #$EB                      (2) END MARK 3.
+-                JSR          WNIBLB2                   (15,9,6) 'WRITE TURN-OFF'
+-                CLC          INDICATE                  NO WR PROT ERR.
+-WADRTS          LDA          Q7L,X                     OUT OF WRITE MODE.
+-                LDA          Q6L,X                     TO READ MODE.
+-WADRTS1         RTS          RETURN
+-WBYTE           PHA          (3)                       PRESERVE FOR EVEN BITS.
+-                LSR          A                         (2) ALIGN ODD BITS.
+-                ORA          AA                        (3) SET CLOCK BITS.
+-                STA          Q6H,X                     (5) WRITE NIBL.
+-                CMP          Q6L,X                     (4)
+-                PLA          (4)                       RECOVER FOR EVEN BITS.
+-                NOP          (2)
+-                NOP          (2)                       FOR DELAY.
+-                NOP          (2)
+-                ORA          #$AA                      (2) SET CLOCK BITS.
+-WNIBLA          NOP          (2)                       (17,9,6) ENTRY.
+-WNIBLB2         NOP          (2)                       (15,9,6) ENTRY.
+-                PHA          (3)                       FOR
+-                PLA          (4)                       DELAY.
+-WRNIBL          STA          Q6H,X                     (5) WRITE NIBL.
+-                CMP          Q6L,X                     (4)
+-                RTS          (6)                       RETURN.
 +WADR16          SEC                                    ;ANTICIPATE WR PROT ERR.
 +                LDA          Q6H,X                     ;INTO 'WR PROT SENSE' MODE.
 +                LDA          Q7L,X                     ;SENSE IT (NEG=PROTECTED)
@@ -2428,39 +2092,7 @@
 +                PHA                                    ;(3) SAVE FOR EVEN BITS.
 +                LSR          A                         ;(2) ALIGHN ODD BITS.
 +                ORA          AA                        ;(3) SET CLOCK BITS.
- *    (PRECISE TIMING, 32 CYCLES PER NIBL)
--                STA          Q6H,X                     (5) WRITE CHECKSUM ODD BITS.
--                LDA          Q6L,X                     (4) BACK TO WRITE MODE.
--                PLA          (4)                       RECOVER FOR EVEN BITS.
--                ORA          #$AA                      (2) SET CLOCK BITS.
--                JSR          WNIBLA                    (17,9,6) WRITE THEM.
--                LDA          #$DE                      (2) END MARK 1.
--                JSR          WNIBLB2                   (15,9,6) WRITE IT.
--                LDA          #$AA                      (2) END MARK 2.
--                JSR          WNIBLB2                   (15,9,6) WRITE IT.
--                LDA          #$EB                      (2) END MARK 3.
--                JSR          WNIBLB2                   (15,9,6) 'WRITE TURN-OFF'
--                CLC          INDICATE                  NO WR PROT ERR.
--WADRTS          LDA          Q7L,X                     OUT OF WRITE MODE.
--                LDA          Q6L,X                     TO READ MODE.
--WADRTS1         RTS          RETURN
--WBYTE           PHA          (3)                       PRESERVE FOR EVEN BITS.
--                LSR          A                         (2) ALIGN ODD BITS.
--                ORA          AA                        (3) SET CLOCK BITS.
--                STA          Q6H,X                     (5) WRITE NIBL.
--                CMP          Q6L,X                     (4)
--                PLA          (4)                       RECOVER FOR EVEN BITS.
--                NOP          (2)
--                NOP          (2)                       FOR DELAY.
--                NOP          (2)
--                ORA          #$AA                      (2) SET CLOCK BITS.
--WNIBLA          NOP          (2)                       (17,9,6) ENTRY.
--WNIBLB2         NOP          (2)                       (15,9,6) ENTRY.
--                PHA          (3)                       FOR
--                PLA          (4)                       DELAY.
--WRNIBL          STA          Q6H,X                     (5) WRITE NIBL.
--                CMP          Q6L,X                     (4)
--                RTS          (6)                       RETURN.
++*    (PRECISE TIMING, 32 CYCLES PER NIBL)
 +                STA          Q6H,X                     ;(5) WRITE CHECKSUM ODD BITS.
 +                LDA          Q6L,X                     ;(4) BACK TO WRITE MODE.
 +                PLA                                    ;(4) RECOVER FOR EVEN BITS.
@@ -2499,7 +2131,7 @@
  XP2H            EQU          256*XP2                   ;NOW AS 16-BITS
                  DS           XP2H-*,0                  ;PAD OUT TO PAGE BOUNDARY..
  
-@@ -5373,7 +5877,7 @@
+@@ -5861,7 +5877,7 @@
  ; #   FILE NAME:  RWTSONE
  ; ####################################################################################################
  
@@ -2508,7 +2140,7 @@
  ****************************
  *         DISK II          *
  * READ/WRITE TRACK-SECTOR  *
-@@ -5426,43 +5930,43 @@
+@@ -5914,43 +5930,43 @@
  SEEKCNT         EQU          $4F8                      ;# RESEEKS BEFORE RECALIBRATE
  RETRYCNT        EQU          $578
  RECALCNT        EQU          $6F8                      ;# RECALIBRATES -1
@@ -2589,7 +2221,7 @@
  **************************
  *                        *
  *     READ/WRITE A       *
-@@ -5552,15 +6056,15 @@
+@@ -6040,15 +6056,15 @@
  * FOR DISK II)           *
  *                        *
  **************************
@@ -2612,7 +2244,7 @@
                  LDY          #2                        ;SET RECALIBRATE
                  STY          RECALCNT                  ; COUNT
                  LDY          #MAXSEEKS                 ;SET RESEEK
-@@ -5669,17 +6173,17 @@
+@@ -6157,17 +6173,17 @@
  *
  *  WAIT FOR MOTOR SPEED TO COME UP.
  *
@@ -2641,7 +2273,7 @@
                  LDY          MONTIME+1                 ;IF MOTORTIME IS POSITIVE,
                  BPL          MOTORUP                   ; THEN SEEK WASTED ENUFF TIME FOR US
  MOTOF           LDY          #$12                      ;DELAY 100 USEC PER COUNT
-@@ -5690,12 +6194,12 @@
+@@ -6178,12 +6194,12 @@
                  INC          MONTIME+1
                  BNE          MOTOF                     ;COUNT UP TO $0000
  MOTORUP         EQU          *
@@ -2660,7 +2292,7 @@
  
  ; ####################################################################################################
  ; #   END OF FILE:  RWTSONE
-@@ -5722,44 +6226,44 @@
+@@ -6210,44 +6226,44 @@
                  ROR          A                         ;SET CARRY=1 FOR READ, 0 FOR WRITE
                  PHP                                    ;AND SAVE THAT
                  BCS          TRYTRK2                   ;MUST PRENIBBLIZE FOR WRITE.
@@ -2737,7 +2369,7 @@
  TRYADR2         DEC          RETRYCNT                  ;ANOTHER MISTAEK!!
                  BPL          TRYADR                    ; WELL, LET IT GO THIS TIME.,
  *
-@@ -5824,77 +6328,77 @@
+@@ -6312,77 +6328,77 @@
                  TAY                                    ;MOVE TO INDEX REG
                  LDA          INTRLEAV,Y                ;COMPUTE PHYSICAL SECTOR
                  CMP          SECT                      ;DID WE GET THE SECTOR?
@@ -2796,6 +2428,13 @@
 -                STA          TL10
 -                FIN
 -                LST          ON
+-                JSR          READ16                    ;CLEARED FOR WRITE
+-                LST          OFF
+-                DO           DIAGMODE
+-                LDA          #SP                       ;READ FINISHED
+-                STA          TL9
+-                FIN
+-                LST          ON
 +;;;                LST          OFF
 +;;;                DO           DIAGMODE
 +;;;                LDA          #TC9                      ;SAY 'READING'
@@ -2804,13 +2443,7 @@
 +;;;                STA          TL10
 +;;;                FIN
 +;;;                LST          ON
-                 JSR          READ16                    ;CLEARED FOR WRITE
--                LST          OFF
--                DO           DIAGMODE
--                LDA          #SP                       ;READ FINISHED
--                STA          TL9
--                FIN
--                LST          ON
++                JSR          READ16                    ;CLEARED FOR WRITE
 +;;;                LST          OFF
 +;;;                DO           DIAGMODE
 +;;;                LDA          #SP                       ;READ FINISHED
@@ -2872,7 +2505,7 @@
                  LDX          SLOT                      ;RESTORE SLOTNUM INTO X
  ALLDONE         CLC
                  DFB          $24                       ;SKIP OVER NEXT BYTE WITH BIT OPCODE
-@@ -5902,44 +6406,44 @@
+@@ -6390,44 +6406,44 @@
                  LDY          #$0D                      ;GIVE HIM ERROR#
                  STA          (IOBPL),Y
                  LDA          MOTOROFF,X                ;TURN IT OFF...
@@ -2952,7 +2585,7 @@
                  BCC          ALLDONE                   ;IF NO ERRORS.
                  LDA          #IBWPER                   ;DISK IS WRITE PROTECTED!!
                  BCS          HNDLERR                   ;ALWAYS TAKEN
-@@ -5950,12 +6454,12 @@
+@@ -6438,12 +6454,12 @@
  * IF DRIVNO IS POSITIVE, ON DRIVE 2
  *
  MYSEEK          PHA                                    ;AND PRESERVE A-REGISTER
@@ -2971,7 +2604,7 @@
                  LDY          #$01                      ;IS THIS A TWO-PHASE DISC?
                  LDA          (DEVCTBL),Y
                  ROR          A                         ;GET # OF PHASES INTO CARRY
-@@ -5964,12 +6468,12 @@
+@@ -6452,12 +6468,12 @@
                  ASL          A
                  JSR          MYSEEK2
                  LSR          CURTRK                    ;DIVIDE BACK DOWN
@@ -2990,7 +2623,7 @@
                  RTS
  MYSEEK2         STA          TRKN                      ;SAVE DESTINATION TRACK(*2)
                  JSR          XTOY                      ;SET Y=SLOT#
-@@ -6022,7 +6526,7 @@
+@@ -6510,7 +6526,7 @@
  ; #   FILE NAME:  FORMATR
  ; ####################################################################################################
  
@@ -2999,7 +2632,7 @@
  ****************************
  *                          *
  *  FORMAT DISK AND RETURN  *
-@@ -6033,78 +6537,78 @@
+@@ -6521,78 +6537,78 @@
  *
  NSYNC           EQU          $45                       ;NUM GAP SELF-SYNC NIBLS
  *
@@ -3049,6 +2682,16 @@
 -FINDS0          SEC          ANTICIPATE                'UNABLE TO FORMAT'
 -                DEC          RETRYCNT                  DONE 48 RETRIES?
 -                BEQ          FORMERR                   IF SO, 'UNABLE TO FORMAT' ERR.
+-                JSR          RDADR16                   ;READ ADR FIELD.
+-                BCS          FINDS0                    RETRY IF ERR.
+-                LDA          SECT                      CHECK SECTOR THAT WAS READ.
+-                BNE          FINDS0                    CONTINUE SEARCHING IF NOT SECT 0.
+-                JSR          READ16                    ;NOW READ DATA FIELD.
+-                BCS          FINDS0                    CONTINUE SEARCH IF ERR.
+-*       (NOW POSITIONED PROPERLY FOR NEXT TRACK)
+-                INC          TRK                       INCREMENT TRACK NUMBER.
+-                LDA          TRK
+-                CMP          #$23                      CONTINUE IF LESS THAN 35.
 +                JSR          MYSEEK                    ;GOTO NEXT TRACK.
 +                JSR          WTRACK16                  ;WRITE AND VERIFY TRACK.
 +FORMERR1        LDA          #8                        ;'UNABLE TO FORMAT' ERR CODE.
@@ -3058,21 +2701,15 @@
 +FINDS0          SEC                                    ;ANTICIPATE 'UNABLE TO FORMAT'
 +                DEC          RETRYCNT                  ;DONE 48 RETRIES?
 +                BEQ          FORMERR                   ;IF SO, 'UNABLE TO FORMAT' ERR.
-                 JSR          RDADR16                   ;READ ADR FIELD.
--                BCS          FINDS0                    RETRY IF ERR.
--                LDA          SECT                      CHECK SECTOR THAT WAS READ.
--                BNE          FINDS0                    CONTINUE SEARCHING IF NOT SECT 0.
++                JSR          RDADR16                   ;READ ADR FIELD.
 +                BCS          FINDS0                    ;RETRY IF ERR.
 +                LDA          SECT                      ;CHECK SECTOR THAT WAS READ.
 +                BNE          FINDS0                    ;CONTINUE SEARCHING IF NOT SECT 0.
-                 JSR          READ16                    ;NOW READ DATA FIELD.
--                BCS          FINDS0                    CONTINUE SEARCH IF ERR.
++                JSR          READ16                    ;NOW READ DATA FIELD.
 +                BCS          FINDS0                    ;CONTINUE SEARCH IF ERR.
- *       (NOW POSITIONED PROPERLY FOR NEXT TRACK)
--                INC          TRK                       INCREMENT TRACK NUMBER.
++*       (NOW POSITIONED PROPERLY FOR NEXT TRACK)
 +                INC          TRK                       ;INCREMENT TRACK NUMBER.
-                 LDA          TRK
--                CMP          #$23                      CONTINUE IF LESS THAN 35.
++                LDA          TRK
 +                CMP          #$23                      ;CONTINUE IF LESS THAN 35.
                  BCC          FORMTRK
 -                CLC          CLEAR                     CARRY TO INDICATE 'NO ERR'
@@ -3121,7 +2758,7 @@
  *****************************
  *                           *
  *     VERIFY ROUTINE        *
-@@ -6137,79 +6641,79 @@
+@@ -6625,79 +6641,79 @@
  *  GREATER).                *
  *                           *
  *****************************
@@ -3146,10 +2783,6 @@
 -                NOP          (2)
 -                DEY          (2)
 -                BNE          S0DELAY                   (3)
--                JSR          RDADR16                   ;READ NEXT ADDRESS FIELD.
--                BCS          S15LOC                    ERR, LOCATE SECT 15 AND REWRITE TRK.
--                LDA          SECT                      WAS IT SECTOR 0?
--                BEQ          VDATA                     YES, NOW VERIFY DATA FIELD.
 +                LDY          NSYNC                     ;DELAY 50 USEC FOR EVERY
 +S0DELAY         JSR          WEXIT2                    ;(12)  SELF-SYNC NIBL
 +                JSR          WEXIT2                    ;(12)  EXPECTED TO INSURE
@@ -3159,7 +2792,10 @@
 +                NOP                                    ;(2)
 +                DEY                                    ;(2)
 +                BNE          S0DELAY                   ;(3)
-+                JSR          RDADR16                   ;READ NEXT ADDRESS FIELD.
+                 JSR          RDADR16                   ;READ NEXT ADDRESS FIELD.
+-                BCS          S15LOC                    ERR, LOCATE SECT 15 AND REWRITE TRK.
+-                LDA          SECT                      WAS IT SECTOR 0?
+-                BEQ          VDATA                     YES, NOW VERIFY DATA FIELD.
 +                BCS          S15LOC                    ;ERR, LOCATE SECT 15 AND REWRITE TRK.
 +                LDA          SECT                      ;WAS IT SECTOR 0?
 +                BEQ          VDATA                     ;YES, NOW VERIFY DATA FIELD.
@@ -3253,7 +2889,7 @@
  * THIS TABLE IS USED TO TRANSLATE
  *  LOGICAL (REQUESTED) SECTOR NUMBER
  *  TO PHYSICAL SECTOR NUMBER. THE
-@@ -6218,7 +6722,7 @@
+@@ -6706,7 +6722,7 @@
  *  ORDER. THE TRANSLATION WILL ALLOW
  *  TIME BETWEEN SECTORS FOR READS.
  *
@@ -3262,7 +2898,7 @@
  *
  * NOTE: THE CURRENT IMPLEMENTATION OF DOS
  *  USUALLY ACCESSES SECTORS IN DECREASING
-@@ -6249,7 +6753,7 @@
+@@ -6737,7 +6753,7 @@
  ; #   FILE NAME:  DOSPTCH
  ; ####################################################################################################
  
@@ -3271,7 +2907,7 @@
  ********************************
  *
  * DOS 3.2 PATCHES BY DICK HUSTON
-@@ -6261,11 +6765,11 @@
+@@ -6749,11 +6765,11 @@
  * ERROR9X CALLED FROM DOS5 LABEL ERROR9
  *
  *
@@ -3285,7 +2921,7 @@
  *****************************
  SDP1            EQU          *                         ;START OF DOS PATCHES
  RCPATCH         EQU          *
-@@ -6274,19 +6778,19 @@
+@@ -6762,19 +6778,19 @@
                  LDA          $C081
                  LDA          #0
                  STA          $E000
@@ -3311,7 +2947,7 @@
  CLRSTS1         JSR          CLRSTS
                  STY          RSTATE                    ;PREVENTS FOREVER 'FILE NOT FOUND'
                  RTS                                    ; IN APPLESOFT
-@@ -6302,9 +6806,9 @@
+@@ -6790,9 +6806,9 @@
  ******************************
  EDP1            EQU          *-1                       ;END OF DOS PATCHES FOR RELOCTR
  ENDOFDOS        EQU          *
