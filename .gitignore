@@ -3,3 +3,5 @@
 *.tmp
 asm
 make-prototypes
+apple-dos-orig.s
+patchfile
