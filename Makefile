@@ -6,14 +6,16 @@ asm: asm.c
 asm.c: src/LICENSE src/defs.h src/prototypes.h src/*.c
 	cat src/LICENSE src/defs.h src/prototypes.h src/*.c > asm.c
 
+src/prototypes.h: src/*.c
+	make -C src prototypes.h
+
 check: asm
 	./asm apple-dos.s "Apple DOS 3.3 January 1983.dsk"
 
 clean:
-	rm -f asm apple-dos-orig.s patchfile
+	rm -f asm apple-dos-orig.s patchfile tools/make-prototypes
 
 all:
-	make -C src prototypes.h
 	make asm
 	make apple-dos-orig.s
 	diff -u apple-dos-orig.s apple-dos.s > patchfile || : # force success
