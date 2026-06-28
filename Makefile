@@ -53,4 +53,4 @@ SRC =	Apple\ DOS\ 3.3C\ Source\ Code/DOS33C.pretty \
 	Apple\ DOS\ 3.3C\ Source\ Code/DOSPTCH.pretty
 
 apple-dos-orig.s: $(SRC)
-	cat  $(SRC) > apple-dos-orig.s || :
+	cat  $(SRC) > apple-dos-orig.s
