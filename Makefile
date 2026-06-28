@@ -19,7 +19,7 @@ clean:
 all:
 	make asm
 	make apple-dos-orig.s
-	diff -u apple-dos-orig.s apple-dos.s > patchfile || : # force success
+	diff -u apple-dos-orig.s apple-dos.s > patchfile || :
 
 SRC =	Apple\ DOS\ 3.3C\ Source\ Code/DOS33C.pretty \
 	Apple\ DOS\ 3.3C\ Source\ Code/RELOCTR.pretty \
@@ -53,4 +53,4 @@ SRC =	Apple\ DOS\ 3.3C\ Source\ Code/DOS33C.pretty \
 	Apple\ DOS\ 3.3C\ Source\ Code/DOSPTCH.pretty
 
 apple-dos-orig.s: $(SRC)
-	cat  $(SRC) > apple-dos-orig.s
+	cat $(SRC) > apple-dos-orig.s
