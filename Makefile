@@ -1,4 +1,4 @@
-.PHONY: check clean all
+.PHONY: verify clean all
 
 asm: asm.c
 	$(CC) -Wall -O0 -o asm asm.c
@@ -9,7 +9,7 @@ asm.c: src/LICENSE src/defs.h src/prototypes.h src/*.c
 src/prototypes.h: src/*.c
 	make -C src prototypes.h
 
-check: asm
+verify: asm
 	./asm apple-dos.s "Apple DOS 3.3 January 1983.dsk"
 
 clean:
