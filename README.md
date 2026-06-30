@@ -1,4 +1,4 @@
-Build `asm` and generate a listing file (`%` is shell prompt)
+Build assembler `asm` and generate a listing file (`%` is shell prompt)
 
 ```
 % make
