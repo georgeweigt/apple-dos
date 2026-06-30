@@ -13,11 +13,3 @@ Compare assembled code with Apple DOS 3.3 disk
 8781 bytes compared
 0 compare errors
 ```
-
-`DOS33C.pretty` is the top level file in `Apple DOS 3.3C Source Code`
-
-To build `apple-dos-orig.s` and `patchfile`
-
-```
-% make all
-```
