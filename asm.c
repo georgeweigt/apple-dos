@@ -2640,7 +2640,6 @@ stack_lo(void)
 	stack[stackindex - 1] = stack[stackindex - 1] & 0xff;
 }
 
-
 void
 stack_hi(void)
 {
