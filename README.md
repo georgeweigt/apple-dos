@@ -1,5 +1,5 @@
-Assembly source file `apple-dos.s` is a merge of the multiple source files found in `Apple DOS 3.3C Source Code`.
-In addition, `apple-dos.s` is edited to match byte-for-byte the DOS binary image file found in `Apple DOS 3.3 January 1983.dsk`.
+Assembly source file `apple-dos.s` is a merge of the multiple source files found in `Apple DOS 3.3C Source Code`
+In addition, `apple-dos.s` is edited to match byte-for-byte the DOS binary image file found in `Apple DOS 3.3 January 1983.dsk`
 
 Build assembler `asm` and generate a listing file
 
