@@ -1,4 +1,4 @@
-.PHONY: verify clean all
+.PHONY: verify
 
 asm: asm.c
 	$(CC) -Wall -O0 -o asm asm.c
@@ -11,15 +11,6 @@ src/prototypes.h: src/*.c
 
 verify: asm
 	./asm apple-dos.s "Apple DOS 3.3 January 1983.dsk"
-
-clean:
-	make -C tools clean
-	rm -f asm src/asm apple-dos-orig.s patchfile
-
-all:
-	make asm
-	make apple-dos-orig.s
-	diff -u apple-dos-orig.s apple-dos.s > patchfile || :
 
 SRC =	Apple\ DOS\ 3.3C\ Source\ Code/DOS33C.pretty \
 	Apple\ DOS\ 3.3C\ Source\ Code/RELOCTR.pretty \
@@ -52,5 +43,6 @@ SRC =	Apple\ DOS\ 3.3C\ Source\ Code/DOS33C.pretty \
 	Apple\ DOS\ 3.3C\ Source\ Code/FORMATR.pretty \
 	Apple\ DOS\ 3.3C\ Source\ Code/DOSPTCH.pretty
 
-apple-dos-orig.s: $(SRC)
-	cat $(SRC) > apple-dos-orig.s
+patchfile: $(SRC)
+	cat $(SRC) > orig.s
+	diff -u orig.s apple-dos.s > patchfile || :

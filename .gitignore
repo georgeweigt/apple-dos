@@ -2,5 +2,5 @@
 *.swp
 *.tmp
 asm
-apple-dos-orig.s
+orig.s
 patchfile
