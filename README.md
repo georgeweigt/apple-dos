@@ -17,8 +17,8 @@ Compare assembled code with Apple DOS 3.3 disk
 0 compare errors
 ```
 
-Create `patchfile` that has the differences between the original source files and `apple-dos.s`
+Create `patchfile` of differences between the original source files and `apple-dos.s`
 
 ```
 make patchfile
-``
+```
