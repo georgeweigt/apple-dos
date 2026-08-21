@@ -1,5 +1,5 @@
 Assembly source file `apple-dos.s` is a union of files from the `Apple DOS 3.3C Source Code` archive.
-The object code from `apple-dos.s` matches byte-for-byte the contents of `Apple DOS 3.3 January 1983.dsk`.
+Object code matches byte-for-byte the contents of `Apple DOS 3.3 January 1983.dsk`.
 
 Build assembler `asm` and generate a listing file
 
